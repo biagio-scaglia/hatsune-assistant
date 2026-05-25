@@ -1,89 +1,100 @@
 # 🌟 Hatsune Assistant 🌟
 
-> A premium responsive Flutter mockup interface of a coding assistant featuring Hatsune Miku as an interactive 3D avatar.
-> Made with 🩵 by **biagigio**.
+> Un'interfaccia mockup premium e responsive sviluppata in Flutter per un assistente alla programmazione avanzato, con Hatsune Miku come presenza 3D.
+> Realizzato con 🩵 da **biagigio**.
 
 ---
 
-## 📸 Overview & Features
+## 📸 Panoramica del Progetto
 
-Hatsune Assistant combines the charm of Hatsune Miku with a sleek, futuristic developer-centric UI. The layout is fully responsive, adjusting seamlessly between Desktop/Tablet and Mobile viewport orientations.
+Hatsune Assistant unisce l'estetica cibernetica di Hatsune Miku con una UI scura, moderna ed estremamente curata per sviluppatori. Questo aggiornamento introduce un'architettura modulare, un design system coerente e un layout completamente responsive pronto per ospitare modelli di intelligenza artificiale reali (locali come Ollama o cloud).
 
-- **Responsive Design System**: 
-  - **Desktop/Tablet**: Split-pane layout with the mock chat panel on the left and the 3D model viewer on the right.
-  - **Mobile**: Top-to-bottom layout prioritizing the 3D model on top, and chat workflow below.
-- **Dynamic 3D Models**: Integrated using `model_viewer_plus`, rendering Hatsune Miku in real-time GLB format.
-- **Interactive States**: Instantly toggle Miku between two functional poses:
-  - 💬 **Talking**: Active when responding or explaining.
-  - 🧠 **Thinking**: Triggered when processing code or working on solutions.
-- **Modern UI styling**: Uses custom glassmorphism, glowing accents, cyan & dark-mode elements matching Hatsune Miku's signature palette (#39C5BB).
+- **Design System Cyberpunk**: Palette scura antracite (`#080B11`), accenti cyan Miku (`#39C5BB`) e sfumature rosa neon (`#FF6B9D`).
+- **Layout Altamente Responsive**:
+  - **Mobile**: Navigazione inferiore fluida (`NavigationBar`) e visualizzazione a colonna singola che si adatta all'apertura della tastiera.
+  - **Tablet & Desktop**: Navigazione laterale (`NavigationRail`) con ripartizione ottimale dello spazio di lavoro.
+- **Predisposizione Modelli (Ollama/Cloud)**: Schermata avanzata di selezione dei modelli (ispirata a Chatbox) con filtri dinamici, indicatori di download locale, stato di attività e provider.
+- **Struttura Modulare e Scalabile**: Organizzazione del codice suddivisa per feature (`home`, `chat`, `models`, `settings`) in modo da favorire la manutenibilità e le future integrazioni.
 
 ---
 
-## 📦 3D Models (glTF/GLB)
+## 📦 Modelli 3D (glTF/GLB)
 
-You can explore the high-fidelity 3D models directly on GitHub:
+L'applicazione è configurata per ospitare l'avatar 3D di Hatsune Miku. Puoi esplorare e orbitare i file 3D nativi direttamente nell'interfaccia di GitHub:
 
 * 🩵 [Visualizza Modello 3D - Talking (talking.glb)](assets/models/talking.glb)
 * 🩵 [Visualizza Modello 3D - Thinking (thinking.glb)](assets/models/thinking.glb)
 
-*GitHub natively supports rendering 3D files inside its web interface. Click the links above to rotate and preview Miku!*
+---
+
+## 🛠️ Stack Tecnologico & Dipendenze
+
+- **Linguaggio**: Dart
+- **Framework**: Flutter (Material 3)
+- **Motore 3D (Predisposto)**: `model_viewer_plus`
+- **Font del Brand**: Google Fonts (*Rajdhani* per i titoli, *Inter* per i contenuti)
 
 ---
 
-## 🛠️ Tech Stack & Dependencies
+## 🚀 Installazione ed Esecuzione
 
-- **Language**: Dart
-- **Framework**: Flutter
-- **3D Render Engine**: `model_viewer_plus` (supports interactive touch controls, auto-rotation, and animation control)
-
----
-
-## 🚀 Setup & Execution
-
-1. **Clone the repository**:
+1. **Clona il repository**:
    ```bash
    git clone https://github.com/biagio-scaglia/hatsune-assistant.git
    cd hatsune-assistant
    ```
 
-2. **Fetch dependencies**:
+2. **Scarica le dipendenze**:
    ```bash
    flutter pub get
    ```
 
-3. **Verify structure and analyze code**:
+3. **Verifica l'integrità del codice**:
    ```bash
    flutter analyze
    ```
 
-4. **Run the App**:
-   - For **Android / iOS**: Ensure a device or emulator is running, then run:
+4. **Avvia i Test**:
+   ```bash
+   flutter test
+   ```
+
+5. **Esegui l'Applicazione**:
+   - Per dispositivi mobile (Android/iOS) o simulatori:
      ```bash
      flutter run
      ```
-   - For **Web** (make sure you have the Flutter web SDK configured):
+   - Per il browser (Chrome/Edge):
      ```bash
      flutter run -d chrome
      ```
 
 ---
 
-## 📁 File Structure
+## 📁 Struttura delle Cartelle
 
 ```text
 lib/
-├── main.dart                 # Application entrypoint
-├── theme/
-│   └── app_theme.dart        # Cyberpunk & Dark/Cyan custom theme
-└── widgets/
-    ├── app_header.dart       # Responsive App Bar with branding
-    ├── miku_viewer_panel.dart# Handles 3D rendering and state switching
-    ├── mock_chat_panel.dart  # Interactive chat flow mockup
-    ├── responsive_shell.dart # Responsive layout builder (Desktop vs Mobile)
-    └── state_switcher.dart   # Floating state controls
+├── core/
+│   ├── design_system/
+│   │   ├── app_colors.dart         # Palette e gradienti cyberpunk
+│   │   ├── app_spacing.dart        # Margini, padding e raggi dei bordi
+│   │   └── app_theme.dart          # Tema globale scuro Material 3
+│   └── responsive/
+│       └── breakpoints.dart        # Rilevamento delle dimensioni schermo
+├── features/
+│   ├── home/                       # Dashboard iniziale e metriche di stato
+│   ├── chat/                       # UI chat a bolle con gestione tastiera
+│   ├── models/                     # Picker e gestione Ollama/Cloud
+│   └── settings/                   # Impostazioni di configurazione ed host
+├── shared/
+│   └── widgets/
+│       ├── app_shell.dart          # Shell responsive con barra di navigazione
+│       ├── app_top_bar.dart        # Header premium con stato di connessione
+│       └── glass_card.dart         # Card semitrasparenti con bordi definiti
+└── main.dart                       # Punto di ingresso dell'app
 ```
 
 ---
 
-*Hatsune Miku is a trademark of Crypton Future Media, INC. This project is a UI mockup made for display purposes by biagigio.*
+*Hatsune Miku è un marchio registrato di Crypton Future Media, INC. Questo progetto è una UI mockup ad uso dimostrativo sviluppata da biagigio.*

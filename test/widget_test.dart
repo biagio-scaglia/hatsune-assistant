@@ -9,6 +9,6 @@ void main() {
     await tester.pumpWidget(const AssistantApp());
 
     // Verifica che il titolo dell'app sia presente
-    expect(find.text('Hatsune Assistant'), findsOneWidget);
+    expect(find.text('HATSUNE ASSISTANT'), findsOneWidget);
   });
 }
