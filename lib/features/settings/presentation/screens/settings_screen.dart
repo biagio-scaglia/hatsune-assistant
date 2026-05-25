@@ -1,10 +1,48 @@
 import 'package:flutter/material.dart';
 import '../../../../core/design_system/app_colors.dart';
 import '../../../../core/design_system/app_spacing.dart';
+import '../../../../core/state/assistant_state.dart';
 import '../../../../shared/widgets/glass_card.dart';
 
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+class SettingsScreen extends StatefulWidget {
+  final AssistantState state;
+
+  const SettingsScreen({
+    super.key,
+    required this.state,
+  });
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late TextEditingController _hostController;
+
+  @override
+  void initState() {
+    super.initState();
+    _hostController = TextEditingController(text: widget.state.ollamaUrl);
+  }
+
+  @override
+  void dispose() {
+    _hostController.dispose();
+    super.dispose();
+  }
+
+  void _saveSettings() {
+    final url = _hostController.text.trim();
+    if (url.isNotEmpty) {
+      widget.state.setOllamaUrl(url);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Endpoint Ollama aggiornato a: $url'),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,6 +58,70 @@ class SettingsScreen extends StatelessWidget {
                     color: AppColors.primary,
                     letterSpacing: 1.2,
                   ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            // Sezione Connettività Ollama / Cloud
+            _SettingsSection(
+              title: 'Configurazione Ollama & Cloud APIs',
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Host Locale Ollama', style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('L\'indirizzo ip del tuo server Ollama attivo', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 36,
+                              child: TextFormField(
+                                controller: _hostController,
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: AppColors.surfaceElevated,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 0),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: AppRadius.borderRadiusSm,
+                                    borderSide: const BorderSide(color: AppColors.border),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: AppRadius.borderRadiusSm,
+                                    borderSide: const BorderSide(color: AppColors.primary),
+                                  ),
+                                ),
+                                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: AppColors.background,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: AppRadius.borderRadiusSm,
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                            onPressed: _saveSettings,
+                            child: const Text('Salva', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                  ),
+                ),
+                const _SettingsTile(
+                  title: 'Chiavi API Cloud',
+                  subtitle: 'Configura OpenAI o Anthropic keys (Predisposto)',
+                  trailing: Icon(Icons.vpn_key_outlined, size: 18, color: AppColors.textSecondary),
+                ),
+              ],
             ),
             const SizedBox(height: AppSpacing.md),
 
@@ -41,31 +143,13 @@ class SettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // Sezione Connettività Ollama / Cloud
-            const _SettingsSection(
-              title: 'Configurazione Ollama & Cloud APIs',
-              children: [
-                _SettingsTileInput(
-                  title: 'Host Locale Ollama',
-                  subtitle: 'L\'indirizzo ip del tuo server Ollama attivo',
-                  initialValue: 'http://localhost:11434',
-                ),
-                _SettingsTile(
-                  title: 'Chiavi API Cloud',
-                  subtitle: 'Configura OpenAI o Anthropic keys',
-                  trailing: Icon(Icons.vpn_key_outlined, size: 18, color: AppColors.textSecondary),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-
             // Sezione Assistant Behavior
             const _SettingsSection(
               title: 'Comportamento Assistente',
               children: [
                 _SettingsTileSwitch(
                   title: 'Modalità Vocale Abilitata',
-                  subtitle: 'Miku risponde anche utilizzando il Text To Speech',
+                  subtitle: 'Miku risponde anche utilizzando il Text To Speech (Predisposto)',
                   value: false,
                 ),
                 _SettingsTileSlider(
@@ -101,7 +185,7 @@ class SettingsScreen extends StatelessWidget {
               children: [
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Hatsune Assistant V1.0.0', style: TextStyle(color: AppColors.textPrimary)),
+                  title: const Text('Hatsune Assistant V1.2.0', style: TextStyle(color: AppColors.textPrimary)),
                   subtitle: const Text('Made by biagigio. Hatsune Miku è un marchio registrato di Crypton Future Media.', style: TextStyle(color: AppColors.textSecondary)),
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -258,54 +342,6 @@ class _SettingsTileSlider extends StatelessWidget {
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SettingsTileInput extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String initialValue;
-
-  const _SettingsTileInput({
-    required this.title,
-    required this.subtitle,
-    required this.initialValue,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-          const SizedBox(height: 6),
-          SizedBox(
-            height: 36,
-            child: TextFormField(
-              initialValue: initialValue,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: AppColors.surfaceElevated,
-                contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 0),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: AppRadius.borderRadiusSm,
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: AppRadius.borderRadiusSm,
-                  borderSide: const BorderSide(color: AppColors.primary),
-                ),
-              ),
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-            ),
-          ),
-          const SizedBox(height: 4),
         ],
       ),
     );

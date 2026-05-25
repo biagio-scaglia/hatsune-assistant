@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 import 'core/design_system/app_theme.dart';
+import 'core/state/assistant_state.dart';
 import 'shared/widgets/app_shell.dart';
 
 void main() {
-  runApp(const AssistantApp());
+  final state = AssistantState();
+  runApp(AssistantApp(state: state));
 }
 
 /// Root dell'applicazione Hatsune Assistant.
 class AssistantApp extends StatelessWidget {
-  const AssistantApp({super.key});
+  final AssistantState state;
+
+  const AssistantApp({
+    super.key,
+    required this.state,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +23,7 @@ class AssistantApp extends StatelessWidget {
       title: 'Hatsune Assistant',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: const AppShell(),
+      home: AppShell(state: state),
     );
   }
 }

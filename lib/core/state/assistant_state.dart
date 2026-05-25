@@ -1,0 +1,223 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import '../services/ollama_service.dart';
+import '../../features/models/domain/model_info.dart';
+
+enum MikuState { idle, thinking, talking, victory }
+
+/// Stato globale dell'applicazione. Gestisce la chat, i modelli, la posa 3D
+/// di Miku ed il collegamento di rete a Ollama.
+class AssistantState extends ChangeNotifier {
+  final OllamaService _ollamaService = OllamaService();
+  
+  MikuState _mikuState = MikuState.idle;
+  final List<Map<String, String>> _messages = [
+    {
+      'sender': 'assistant',
+      'text': 'Ciao! Sono Hatsune Miku, la tua assistente virtuale di programmazione. Come posso aiutarti oggi? 🩵',
+      'time': 'Adesso'
+    }
+  ];
+  List<ModelInfo> _models = [];
+  ModelInfo? _activeModel;
+  bool _isConnected = false;
+  bool _isLoadingModels = false;
+  Timer? _victoryTimer;
+
+  // I modelli cloud standard impostati dall'utente
+  final List<ModelInfo> _cloudModels = const [
+    ModelInfo(
+      id: 'kimi-k2.6:cloud',
+      name: 'kimi-k2.6:cloud',
+      provider: 'Ollama Cloud',
+      type: ModelType.cloud,
+      status: ModelStatus.online,
+      size: 'Cloud API',
+      description: 'Modello Kimi versione K2.6 per compiti complessi in cloud.',
+    ),
+    ModelInfo(
+      id: 'glm-5.1:cloud',
+      name: 'glm-5.1:cloud',
+      provider: 'Ollama Cloud',
+      type: ModelType.cloud,
+      status: ModelStatus.online,
+      size: 'Cloud API',
+      description: 'Modello GLM versione 5.1 ottimizzato per il ragionamento in lingua italiana.',
+    ),
+    ModelInfo(
+      id: 'qwen3.5:cloud',
+      name: 'qwen3.5:cloud',
+      provider: 'Ollama Cloud',
+      type: ModelType.cloud,
+      status: ModelStatus.online,
+      size: 'Cloud API',
+      description: 'Modello Qwen 3.5 per coding avanzato e risposte rapide strutturate.',
+    ),
+    ModelInfo(
+      id: 'nemotron-3-super:cloud',
+      name: 'nemotron-3-super:cloud',
+      provider: 'Ollama Cloud',
+      type: ModelType.cloud,
+      status: ModelStatus.online,
+      size: 'Cloud API',
+      description: 'Modello Nemotron 3 Super per risposte di alta qualità su architettura software.',
+    ),
+    ModelInfo(
+      id: 'gemma4:31b-cloud',
+      name: 'gemma4:31b-cloud',
+      provider: 'Ollama Cloud',
+      type: ModelType.cloud,
+      status: ModelStatus.online,
+      size: 'Cloud API',
+      description: 'Modello Google Gemma 4 (31B) con straordinarie capacità logico-matematiche.',
+    ),
+  ];
+
+  AssistantState() {
+    refreshModels();
+  }
+
+  // Getters
+  MikuState get mikuState => _mikuState;
+  List<Map<String, String>> get messages => _messages;
+  List<ModelInfo> get models => _models;
+  ModelInfo? get activeModel => _activeModel;
+  bool get isConnected => _isConnected;
+  bool get isLoadingModels => _isLoadingModels;
+  String get ollamaUrl => _ollamaService.baseUrl;
+
+  /// Aggiorna l'URL dell'host Ollama e ricarica i modelli locali.
+  void setOllamaUrl(String url) {
+    _ollamaService.baseUrl = url;
+    notifyListeners();
+    refreshModels();
+  }
+
+  /// Imposta il modello attivo per la chat.
+  void selectModel(ModelInfo model) {
+    _activeModel = model;
+    notifyListeners();
+  }
+
+  /// Avvia una ricerca e ricarica i modelli locali e cloud.
+  Future<void> refreshModels() async {
+    _isLoadingModels = true;
+    notifyListeners();
+
+    try {
+      final localList = await _ollamaService.fetchLocalModels();
+      _isConnected = true;
+      
+      // Unisci modelli locali rilevati a quelli cloud predefiniti
+      _models = [...localList, ..._cloudModels];
+
+      // Se non c'è nessun modello attivo, imposta il primo locale o cloud disponibile
+      if (_activeModel == null || !_models.any((m) => m.id == _activeModel!.id)) {
+        _activeModel = localList.isNotEmpty ? localList.first : _cloudModels.first;
+      }
+    } catch (e) {
+      _isConnected = false;
+      // In caso di errore (Ollama non avviato), mostra solo i modelli Cloud finti per consentire test UI
+      _models = [..._cloudModels];
+      if (_activeModel == null || !_models.any((m) => m.id == _activeModel!.id)) {
+        _activeModel = _cloudModels.first;
+      }
+    } finally {
+      _isLoadingModels = false;
+      notifyListeners();
+    }
+  }
+
+  /// Invia un messaggio all'assistente tramite Ollama
+  Future<void> sendMessage(String text) async {
+    if (text.trim().isEmpty) return;
+
+    // Cancella eventuali timer victory attivi
+    _victoryTimer?.cancel();
+
+    // Aggiunge messaggio utente
+    _messages.add({
+      'sender': 'user',
+      'text': text,
+      'time': _getCurrentTime(),
+    });
+
+    _mikuState = MikuState.thinking;
+    notifyListeners();
+
+    final modelName = _activeModel?.name ?? 'llama3';
+
+    // Predispone i messaggi per l'endpoint di chat di Ollama
+    final List<Map<String, String>> chatHistory = _messages.map((m) {
+      return {
+        'role': m['sender'] == 'user' ? 'user' : 'assistant',
+        'content': m['text']!,
+      };
+    }).toList();
+
+    try {
+      final responseText = await _ollamaService.sendChatMessage(modelName, chatHistory);
+
+      _messages.add({
+        'sender': 'assistant',
+        'text': responseText,
+        'time': _getCurrentTime(),
+      });
+
+      // Controlla se l'utente ha usato parole chiavi positive per attivare lo stato di vittoria (victory)
+      final lowerText = text.toLowerCase();
+      if (lowerText.contains('grazie') ||
+          lowerText.contains('bella risposta') ||
+          lowerText.contains('ottimo') ||
+          lowerText.contains('brava') ||
+          lowerText.contains('perfetto') ||
+          lowerText.contains('grande')) {
+        setMikuState(MikuState.victory);
+        // Ritorna a idle dopo 5 secondi
+        _victoryTimer = Timer(const Duration(seconds: 5), () {
+          setMikuState(MikuState.idle);
+        });
+      } else {
+        setMikuState(MikuState.talking);
+        // Ritorna a idle dopo 6 secondi di visualizzazione/parlato stimato
+        _victoryTimer = Timer(const Duration(seconds: 6), () {
+          setMikuState(MikuState.idle);
+        });
+      }
+    } catch (e) {
+      // In caso di errore, aggiunge un messaggio dell'assistente per avvisare l'utente
+      _messages.add({
+        'sender': 'assistant',
+        'text': '⚠️ Errore di connessione a Ollama: Assicurati che Ollama sia avviato localmente su $ollamaUrl e che il modello $_activeModel sia installato.\n\nDettagli errore: $e',
+        'time': _getCurrentTime(),
+      });
+      setMikuState(MikuState.idle);
+    }
+  }
+
+  /// Forza lo stato di Miku e aggiorna i listener.
+  void setMikuState(MikuState state) {
+    _mikuState = state;
+    notifyListeners();
+  }
+
+  /// Forza manualmente lo stato di vittoria (ad esempio cliccando sulle card o tramite azioni rapide).
+  void triggerVictoryManual() {
+    _victoryTimer?.cancel();
+    setMikuState(MikuState.victory);
+    _victoryTimer = Timer(const Duration(seconds: 5), () {
+      setMikuState(MikuState.idle);
+    });
+  }
+
+  String _getCurrentTime() {
+    final now = DateTime.now();
+    return '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  void dispose() {
+    _victoryTimer?.cancel();
+    super.dispose();
+  }
+}

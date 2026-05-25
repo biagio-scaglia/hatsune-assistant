@@ -2,11 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/design_system/app_colors.dart';
 import '../../../../core/design_system/app_spacing.dart';
+import '../../../../core/state/assistant_state.dart';
 import '../../../../shared/widgets/glass_card.dart';
 import '../../domain/model_info.dart';
 
 class ModelsScreen extends StatefulWidget {
-  const ModelsScreen({super.key});
+  final AssistantState state;
+
+  const ModelsScreen({
+    super.key,
+    required this.state,
+  });
 
   @override
   State<ModelsScreen> createState() => _ModelsScreenState();
@@ -15,71 +21,11 @@ class ModelsScreen extends StatefulWidget {
 class _ModelsScreenState extends State<ModelsScreen> {
   String _searchQuery = '';
   ModelType? _selectedTypeFilter;
-  String _activeModelId = 'llama3_local';
-
-  // Lista mock di modelli locali (Ollama) e cloud
-  final List<ModelInfo> _models = [
-    const ModelInfo(
-      id: 'llama3_local',
-      name: 'Llama 3 (8B)',
-      provider: 'Ollama (Local)',
-      type: ModelType.local,
-      status: ModelStatus.active,
-      size: '4.7 GB',
-      description: 'Modello local-first bilanciato ottimale per coding e ragionamento veloce offline.',
-    ),
-    const ModelInfo(
-      id: 'mistral_local',
-      name: 'Mistral (7B)',
-      provider: 'Ollama (Local)',
-      type: ModelType.local,
-      status: ModelStatus.downloaded,
-      size: '4.1 GB',
-      description: 'Modello compatto ad alte prestazioni, consigliato per hardware locale con VRAM limitata.',
-    ),
-    const ModelInfo(
-      id: 'phi3_local',
-      name: 'Phi-3 Medium',
-      provider: 'Ollama (Local)',
-      type: ModelType.local,
-      status: ModelStatus.online,
-      size: '7.9 GB',
-      description: 'Modello locale di Microsoft con eccezionali abilità logiche per dimensioni ridotte.',
-    ),
-    const ModelInfo(
-      id: 'qwen2_local',
-      name: 'Qwen 2 (7B)',
-      provider: 'Ollama (Local)',
-      type: ModelType.local,
-      status: ModelStatus.downloading,
-      size: '4.4 GB',
-      downloadProgress: 0.65,
-      description: 'Ottime performance in coding multilingua e istruzioni complesse.',
-    ),
-    const ModelInfo(
-      id: 'gpt4_cloud',
-      name: 'GPT-4o',
-      provider: 'OpenAI (Cloud)',
-      type: ModelType.cloud,
-      status: ModelStatus.online,
-      size: 'API Cloud',
-      description: 'Il modello cloud di riferimento per problemi di sviluppo complessi ed analisi avanzata.',
-    ),
-    const ModelInfo(
-      id: 'claude3_cloud',
-      name: 'Claude 3.5 Sonnet',
-      provider: 'Anthropic (Cloud)',
-      type: ModelType.cloud,
-      status: ModelStatus.online,
-      size: 'API Cloud',
-      description: 'Eccellente nella comprensione e generazione di codice strutturato e refactoring.',
-    ),
-  ];
 
   @override
   Widget build(BuildContext context) {
-    // Filtraggio dinamico dei modelli
-    final filteredModels = _models.where((model) {
+    // Raggruppa e filtra la lista dei modelli caricata dallo stato dell'app
+    final filteredModels = widget.state.models.where((model) {
       final matchesSearch = model.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           model.provider.toLowerCase().contains(_searchQuery.toLowerCase());
       final matchesFilter = _selectedTypeFilter == null || model.type == _selectedTypeFilter;
@@ -92,41 +38,54 @@ class _ModelsScreenState extends State<ModelsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Titolo sezione
-            Text(
-              'GESTIONE MODELLI INTELLIGENTI',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppColors.primary,
-                    letterSpacing: 1.2,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'GESTIONE MODELLI INTELLIGENTI',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppColors.primary,
+                        letterSpacing: 1.2,
+                      ),
+                ),
+                // Icona di caricamento modelli
+                if (widget.state.isLoadingModels)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    ),
+                  )
+                else
+                  IconButton(
+                    icon: const Icon(Icons.refresh, size: 18, color: AppColors.textSecondary),
+                    onPressed: () => widget.state.refreshModels(),
                   ),
+              ],
             ),
             const SizedBox(height: AppSpacing.sm),
 
-            // Search Bar ed elegante barra dei filtri
+            // Filtro e barra di ricerca
             _buildSearchAndFilters(),
             const SizedBox(height: AppSpacing.md),
 
             // Lista Modelli
             Expanded(
               child: filteredModels.isEmpty
-                  ? const _EmptyModelsView()
+                  ? _buildEmptyState()
                   : ListView.builder(
                       itemCount: filteredModels.length,
                       itemBuilder: (context, index) {
                         final model = filteredModels[index];
-                        final isActive = model.id == _activeModelId;
+                        final isActive = widget.state.activeModel?.id == model.id;
 
                         return _ModelTile(
                           model: model,
                           isActive: isActive,
                           onActivate: () {
-                            if (model.status == ModelStatus.downloaded ||
-                                model.status == ModelStatus.active ||
-                                model.type == ModelType.cloud) {
-                              setState(() {
-                                _activeModelId = model.id;
-                              });
-                            }
+                            widget.state.selectModel(model);
                           },
                         );
                       },
@@ -141,7 +100,6 @@ class _ModelsScreenState extends State<ModelsScreen> {
   Widget _buildSearchAndFilters() {
     return Column(
       children: [
-        // Search text field
         TextField(
           onChanged: (val) => setState(() => _searchQuery = val),
           decoration: InputDecoration(
@@ -163,7 +121,7 @@ class _ModelsScreenState extends State<ModelsScreen> {
         ),
         const SizedBox(height: AppSpacing.sm),
 
-        // Filtri chips orizzontali
+        // Filtri chips
         Row(
           children: [
             _FilterChip(
@@ -188,9 +146,36 @@ class _ModelsScreenState extends State<ModelsScreen> {
       ],
     );
   }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.dns_outlined, size: 64, color: AppColors.textMuted),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            widget.state.isConnected ? 'Nessun modello trovato' : 'Ollama Offline',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            widget.state.isConnected 
+                ? 'Prova a modificare la ricerca o il filtro attivo.' 
+                : 'Accendi Ollama sul tuo PC locale per elencare i modelli.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textMuted,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-/// Custom Filter Chip.
 class _FilterChip extends StatelessWidget {
   final String label;
   final bool isSelected;
@@ -226,7 +211,6 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-/// Card rappresentativa per singolo modello IA.
 class _ModelTile extends StatelessWidget {
   final ModelInfo model;
   final bool isActive;
@@ -254,7 +238,7 @@ class _ModelTile extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Informazioni principali ed etichetta tipo
+                // Info principali ed etichetta tipo
                 Row(
                   children: [
                     Container(
@@ -270,13 +254,24 @@ class _ModelTile extends StatelessWidget {
                               : AppColors.cloudModel.withValues(alpha: 0.4),
                         ),
                       ),
-                      child: Text(
-                        isLocal ? 'LOCAL (OLLAMA)' : 'CLOUD',
-                        style: GoogleFonts.rajdhani(
-                          color: isLocal ? AppColors.localModel : AppColors.cloudModel,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isLocal ? Icons.computer : Icons.cloud_queue, 
+                            color: isLocal ? AppColors.localModel : AppColors.cloudModel,
+                            size: 10,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isLocal ? 'LOCAL' : 'CLOUD',
+                            style: GoogleFonts.rajdhani(
+                              color: isLocal ? AppColors.localModel : AppColors.cloudModel,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
@@ -289,13 +284,13 @@ class _ModelTile extends StatelessWidget {
                   ],
                 ),
 
-                // Stato o Bottone di azione
-                _buildStatusOrActionButton(context),
+                // Stato / Attiva
+                _buildStatusOrActionButton(),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
 
-            // Descrizione del modello
+            // Descrizione
             Text(
               model.description,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -304,42 +299,20 @@ class _ModelTile extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
 
-            // File size o metadati e stato di avanzamento download
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Provider: ${model.provider}  •  Dimensione: ${model.size}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textMuted,
-                      ),
-                ),
-                if (model.status == ModelStatus.downloading && model.downloadProgress != null)
-                  Text(
-                    'Downloading: ${(model.downloadProgress! * 100).toInt()}%',
-                    style: const TextStyle(color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 11),
+            // Info finali
+            Text(
+              'Provider: ${model.provider}  •  Dimensione: ${model.size}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textMuted,
                   ),
-              ],
             ),
-            if (model.status == ModelStatus.downloading && model.downloadProgress != null) ...[
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: AppRadius.borderRadiusSm,
-                child: LinearProgressIndicator(
-                  value: model.downloadProgress,
-                  backgroundColor: AppColors.border,
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.secondary),
-                  minHeight: 4,
-                ),
-              ),
-            ]
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStatusOrActionButton(BuildContext context) {
+  Widget _buildStatusOrActionButton() {
     if (isActive) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -362,72 +335,13 @@ class _ModelTile extends StatelessWidget {
       );
     }
 
-    switch (model.status) {
-      case ModelStatus.online:
-        if (model.type == ModelType.cloud) {
-          // Cloud models non hanno download locale, sono pronti all'attivazione
-          return OutlinedButton(
-            onPressed: onActivate,
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-              side: const BorderSide(color: AppColors.primary),
-            ),
-            child: const Text('Attiva', style: TextStyle(color: AppColors.primary, fontSize: 11)),
-          );
-        }
-        return IconButton(
-          icon: const Icon(Icons.download_rounded, color: AppColors.textSecondary),
-          onPressed: () {},
-        );
-      case ModelStatus.downloading:
-        return const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(AppColors.secondary),
-          ),
-        );
-      case ModelStatus.downloaded:
-      case ModelStatus.active:
-        return OutlinedButton(
-          onPressed: onActivate,
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-            side: const BorderSide(color: AppColors.primary),
-          ),
-          child: const Text('Attiva', style: TextStyle(color: AppColors.primary, fontSize: 11)),
-        );
-    }
-  }
-}
-
-class _EmptyModelsView extends StatelessWidget {
-  const _EmptyModelsView();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.dns_outlined, size: 64, color: AppColors.textMuted),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            'Nessun modello trovato',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Prova a modificare la ricerca o il filtro attivo.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textMuted,
-                ),
-          ),
-        ],
+    return OutlinedButton(
+      onPressed: onActivate,
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+        side: const BorderSide(color: AppColors.primary),
       ),
+      child: const Text('Attiva', style: TextStyle(color: AppColors.primary, fontSize: 11)),
     );
   }
 }

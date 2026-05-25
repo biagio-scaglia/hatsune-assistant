@@ -3,15 +3,27 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/design_system/app_colors.dart';
 import '../../../../core/design_system/app_spacing.dart';
 import '../../../../core/responsive/breakpoints.dart';
+import '../../../../core/state/assistant_state.dart';
 import '../../../../shared/widgets/glass_card.dart';
+import '../../../../features/models/domain/model_info.dart';
 
-/// La Dashboard iniziale dell'applicazione.
+/// La Dashboard iniziale dell'applicazione, collegata allo stato reale.
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  final AssistantState state;
+
+  const HomeScreen({
+    super.key,
+    required this.state,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isMobile = Breakpoints.isMobile(context);
+    final useSingleColumn = MediaQuery.sizeOf(context).width < 1100;
+
+    // Conta i modelli suddivisi per tipo
+    final localCount = state.models.where((m) => m.type == ModelType.local).length;
+    final cloudCount = state.models.where((m) => m.type == ModelType.cloud).length;
 
     return Scaffold(
       body: SingleChildScrollView(
@@ -20,11 +32,11 @@ class HomeScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Hero Card dell'Assistente
-            const _AssistantHeroCard(),
+            _AssistantHeroCard(state: state),
             const SizedBox(height: AppSpacing.lg),
 
             Text(
-              'STATO DEL SISTEMA',
+              'STATO DEL SISTEMA REALE',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: AppColors.primary,
                     letterSpacing: 1.2,
@@ -32,49 +44,51 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
 
-            // Griglia responsive per lo stato del sistema e scorciatoie
+            // Griglia responsive per lo stato del sistema
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: isMobile ? 1 : 2,
+              crossAxisCount: useSingleColumn ? 1 : 2,
               crossAxisSpacing: AppSpacing.md,
               mainAxisSpacing: AppSpacing.md,
-              childAspectRatio: isMobile ? 2.5 : 2.0,
-              children: const [
+              childAspectRatio: useSingleColumn ? 3.2 : 2.2,
+              children: [
                 _StatusMetricCard(
-                  title: 'Modello IA Attivo',
-                  value: 'Llama 3 (8B)',
-                  subtitle: 'Ollama Local • Connesso',
+                  title: 'Modello Attivo',
+                  value: state.activeModel?.name ?? 'Nessun Modello',
+                  subtitle: state.activeModel != null
+                      ? '${state.activeModel!.provider} • Pronto'
+                      : 'Seleziona un modello dalla tab Models',
                   icon: Icons.auto_awesome,
                   accentColor: AppColors.primary,
                 ),
                 _StatusMetricCard(
-                  title: 'Memoria & Sessione',
-                  value: '2.4 GB / 8.0 GB',
-                  subtitle: 'Contesto: 4096 token (OK)',
-                  icon: Icons.memory,
-                  accentColor: AppColors.secondary,
-                ),
-                _StatusMetricCard(
-                  title: 'Latenza Inferenza',
-                  value: ' ~24ms',
-                  subtitle: 'Ottime performance GPU locali',
-                  icon: Icons.speed,
-                  accentColor: AppColors.success,
-                ),
-                _StatusMetricCard(
-                  title: 'Provider di Rete',
-                  value: 'Local Host',
-                  subtitle: 'Port: 11434 • Criptato',
+                  title: 'Connessione Ollama',
+                  value: state.isConnected ? 'ONLINE' : 'OFFLINE',
+                  subtitle: 'Endpoint: ${state.ollamaUrl}',
                   icon: Icons.lan,
-                  accentColor: AppColors.accentBlue,
+                  accentColor: state.isConnected ? AppColors.success : AppColors.error,
+                ),
+                _StatusMetricCard(
+                  title: 'Modelli Disponibili',
+                  value: '${state.models.length} Modelli',
+                  subtitle: '$localCount Locali • $cloudCount Cloud Configurati',
+                  icon: Icons.dns,
+                  accentColor: AppColors.localModel,
+                ),
+                _StatusMetricCard(
+                  title: 'Posa Corrente Avatar',
+                  value: state.mikuState.name.toUpperCase(),
+                  subtitle: 'Interazione 3D in tempo reale',
+                  icon: Icons.face,
+                  accentColor: AppColors.secondary,
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.lg),
 
             Text(
-              'AZIONI RAPIDE',
+              'AZIONI DI TEST',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: AppColors.primary,
                     letterSpacing: 1.2,
@@ -82,25 +96,20 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
 
-            // Lista orizzontale/verticale di card scorciatoia
+            // Pulsanti di interazione rapida e diagnostica
             Wrap(
               spacing: AppSpacing.md,
               runSpacing: AppSpacing.md,
               children: [
                 _QuickActionButton(
-                  label: 'Nuova Chat',
-                  icon: Icons.add_comment,
-                  onPressed: () {},
+                  label: 'Ricarica Modelli',
+                  icon: Icons.refresh,
+                  onPressed: () => state.refreshModels(),
                 ),
                 _QuickActionButton(
-                  label: 'Gestione Modelli',
-                  icon: Icons.dns,
-                  onPressed: () {},
-                ),
-                _QuickActionButton(
-                  label: 'Test Connessione Ollama',
-                  icon: Icons.cable,
-                  onPressed: () {},
+                  label: 'Trigger Posa Victory (5s)',
+                  icon: Icons.star,
+                  onPressed: () => state.triggerVictoryManual(),
                 ),
               ],
             ),
@@ -111,9 +120,11 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-/// Card principale promozionale/informativa dell'assistente.
+/// Card principale promozionale/infolink dell'assistente.
 class _AssistantHeroCard extends StatelessWidget {
-  const _AssistantHeroCard();
+  final AssistantState state;
+
+  const _AssistantHeroCard({required this.state});
 
   @override
   Widget build(BuildContext context) {
@@ -150,7 +161,9 @@ class _AssistantHeroCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: AppSpacing.sm,
                   children: [
                     Text(
                       'Hatsune Miku',
@@ -160,7 +173,6 @@ class _AssistantHeroCard extends StatelessWidget {
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.sm),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
@@ -169,9 +181,9 @@ class _AssistantHeroCard extends StatelessWidget {
                         border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                       ),
                       child: Text(
-                        'V3.9',
+                        state.isConnected ? 'ONLINE' : 'OFFLINE',
                         style: GoogleFonts.rajdhani(
-                          color: AppColors.primary,
+                          color: state.isConnected ? AppColors.primary : AppColors.textMuted,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -181,7 +193,9 @@ class _AssistantHeroCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Pronta ad aiutarti nel debug e nello sviluppo dei tuoi progetti.',
+                  state.isConnected
+                      ? 'Connessa ed operativa con il modello ${state.activeModel?.name ?? ""}. Chiedimi pure aiuto per il codice!'
+                      : 'Attualmente disconnessa da Ollama. Assicurati che l\'applicazione sia in esecuzione sulla porta 11434.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
