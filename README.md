@@ -1,19 +1,19 @@
 # 🌟 Hatsune Assistant 🌟
 
-> Un assistente alla programmazione interattivo sviluppato in Flutter, con Hatsune Miku come presenza 3D animata collegata a un backend asincrono in Python (FastAPI) connesso a modelli LLM Ollama locali e in Cloud.
+> Un assistente alla programmazione interattivo sviluppato in Flutter, con Hatsune Miku come presenza 3D animata collegata a un backend asincrono in Python (FastAPI) connesso a modelli LLM Ollama locali/Cloud e sintesi vocale locale **Piper TTS**.
 > Realizzato con 🩵 da **biagigio**.
 
 ---
 
 ## 📸 Panoramica del Progetto
 
-Hatsune Assistant unisce l'estetica cyberpunk di Hatsune Miku con una UI scura, moderna ed estremamente responsive progettata per sviluppatori. L'applicazione si appoggia a un backend asincrono in Python che fa da ponte (bridge) verso un'istanza locale di Ollama ed è in grado di inviare prompt, gestire lo streaming delle risposte, configurare i parametri e caricare i modelli installati, integrando al contempo un modello 3D interattivo che reagisce in tempo reale alle interazioni della chat.
+Hatsune Assistant unisce l'estetica cyberpunk di Hatsune Miku con una UI scura, moderna ed estremamente responsive progettata per sviluppatori. L'applicazione si appoggia a un backend asincrono in Python che fa da ponte (bridge) verso un'istanza locale di Ollama ed è in grado di inviare prompt, gestire lo streaming delle risposte, configurare i parametri e caricare i modelli installati. Integra inoltre la sintesi vocale locale ad alte prestazioni tramite **Piper TTS**, consentendo all'avatar 3D di Miku di parlare ed animarsi in tempo reale coordinandosi all'output audio generato.
 
 ### 🩵 Stati e Pose della Miku 3D
 L'avatar 3D cambia posa a seconda dello stato di elaborazione dell'assistente:
 - **Idle** (`idle.glb`): Stato di riposo/attesa predefinito (con auto-rotazione attiva).
 - **Thinking** (`thinking.glb`): Miku si concentra mentre il backend e Ollama elaborano la risposta.
-- **Talking** (`talking.glb`): Miku parla ed espone l'output testuale generato.
+- **Talking** (`talking.glb`): Miku parla ed espone l'output testuale generato (riproducendo l'audio sintetizzato).
 - **Victory** (`victory.glb`): Miku festeggia quando riceve complimenti o riscontri positivi (es. scrivendo *"grazie"*, *"bella risposta"*, *"ottimo"*, *"brava"*, *"perfetto"* nella chat), per poi tornare automaticamente in stato Idle dopo 5 secondi.
 
 ---
@@ -25,7 +25,13 @@ L'avatar 3D cambia posa a seconda dello stato di elaborazione dell'assistente:
   - **Health Check & Diagnostica**: Rilevamento dello stato di salute del server e della raggiungibilità di Ollama (`GET /api/v1/health`).
   - **Elenco Modelli**: Caricamento dinamico dei modelli installati localmente (`GET /api/v1/models`).
   - **Chat Reale & Streaming SSE**: Supporto completo per risposte standard JSON (`POST /api/v1/chat`) e streaming progressivo delle parole in tempo reale tramite Server-Sent Events (`POST /api/v1/chat/stream`).
+  - **Sintesi Vocale Locale Standalone (`POST /api/v1/tts`)**: Genera un file WAV a partire da un testo e fornisce un URL statico per la riproduzione.
+  - **Pipeline Chat + TTS Unificata (`POST /api/v1/chat-with-tts`)**: Interroga Ollama e converte immediatamente la risposta in audio, restituendo testo ed URL audio in una singola richiesta.
   - **Configurazione Centralizzata**: Gestione dinamica dell'indirizzo host e delle chiavi da file `.env`.
+- **Integrazione Vocale Piper Zero-Dependency**:
+  - **Zero installazioni pesanti**: Viene scaricato in background l'eseguibile precompilato ufficiale `piper.exe` per Windows e i modelli ONNX di default al primo avvio.
+  - **Gestione Multi-lingua**: Supporta l'italiano (`it_IT-riccardo-x_low`) e l'inglese (`en_US-lessac-medium`) scaricati su richiesta dal server.
+  - **Fallback Intelligente**: Se i binari sono in fase di download, riproduce un segnale acustico cyber in modalità fallback per non interrompere i test dell'app.
 - **Layout Responsive Premium**:
   - **Desktop/Tablet**: Split-screen con barra di navigazione laterale (`NavigationRail`) e visualizzatore Miku 3D persistente sulla destra.
   - **Mobile**: Navigazione inferiore (`NavigationBar`) e visualizzatore Miku 3D posizionato in alto, che si nasconde intelligentemente per lasciare il 100% dello spazio ai messaggi quando la tastiera virtuale è aperta.
@@ -60,6 +66,8 @@ I file 3D dell'assistente sono inclusi localmente nel progetto. Puoi visualizzar
 - **Dipendenze Chiave**:
   - `httpx`: per le chiamate asincrone non-blocking a Ollama.
   - `pydantic` & `pydantic-settings`: per la validazione rigorosa dei modelli di dati e delle variabili d'ambiente.
+  - `slowapi`: per rate limiting delle chiamate API.
+  - **Piper C++ Standalone (`piper.exe`)**: motore TTS locale integrato in modo portabile e senza dipendenze Python pesanti.
 
 ---
 

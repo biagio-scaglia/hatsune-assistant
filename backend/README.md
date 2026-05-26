@@ -1,6 +1,6 @@
 # Hatsune Assistant AI Backend
 
-Questo è il backend di servizio in Python (FastAPI) per **Hatsune Assistant**. Funge da bridge (ponte) sicuro e scalabile tra l'applicazione client in Flutter e le API locali/remote di Ollama, integrando ora la sintesi vocale locale tramite **Kokoro TTS**.
+Questo è il backend di servizio in Python (FastAPI) per **Hatsune Assistant**. Funge da bridge (ponte) sicuro e scalabile tra l'applicazione client in Flutter e le API locali/remote di Ollama, integrando ora la sintesi vocale locale ad alte prestazioni tramite **Piper TTS**.
 
 ## Funzionalità principali
 1. **Health Check (`/api/v1/health`)**: Verifica lo stato del backend e la connettività con Ollama.
@@ -19,25 +19,24 @@ Questo è il backend di servizio in Python (FastAPI) per **Hatsune Assistant**. 
 
 ---
 
-## Integrazione Kokoro TTS Locale (Opzionale)
+## Integrazione Piper TTS Locale (Zero-Dependency)
 
-Il backend supporta la sintesi vocale locale di alta qualità tramite la libreria **Kokoro TTS**. Tuttavia, a causa delle dipendenze di compilazione C++ (come `spacy`) e della compatibilità di Python 3.14+ su Windows, il servizio Kokoro reale è **disattivato di default** per garantire un avvio privo di errori.
+Il backend integra **Piper TTS** in locale come motore di sintesi vocale principale. 
+Per evitare pesanti compilazioni C++ o problemi di incompatibilità delle librerie ML (PyTorch, ONNX runtime) su Windows con Python 3.14+, il backend utilizza l'eseguibile precompilato ufficiale **Piper standalone (`piper.exe`)**.
 
-### 1. Avvio Rapido (Modalità Fallback - Predefinita)
-All'avvio tramite `start.bat`, il backend si avvierà automaticamente in **Modalità Fallback (sintesi sinusoidale interna)**:
-- **Nessuna dipendenza pesante da installare**: non richiede compilatori C++, CUDA, PyTorch o pacchetti esterni.
-- **Funziona al 100% su qualsiasi versione di Python (compreso Python 3.14+)**.
-- **Genera file WAV reali**: produce dei segnali sinusoidali cyber modulati in frequenza in base alla lunghezza del testo. Questo consente al client Flutter di ricevere comunque gli URL audio, simulando perfettamente il parlato e testando l'animazione di Miku senza errori di build.
+### Come funziona il download automatico degli Asset:
+Al primo avvio o alla prima chiamata TTS, il backend verificherà ed eventualmente scaricherà in background (senza bloccare l'avvio di FastAPI) i seguenti file nella cartella `backend/bin/piper/`:
+1. **Motore Piper**: Scarica `piper_windows_amd64.zip` (da GitHub releases v1.2.0) e lo estrae automaticamente.
+2. **Modelli di default**: Scarica da Hugging Face `rhasspy/piper-voices` i file del modello vocale (`.onnx` e `.json`):
+   - Per l'italiano: `it_IT-riccardo-x_low` (voce Riccardo, circa 15 MB)
+   - Per l'inglese: `en_US-lessac-medium` (voce Lessac, circa 15 MB)
 
-### 2. Abilitare Kokoro TTS Reale (Opzionale)
-Se desideri attivare la sintesi vocale reale generata da Kokoro TTS locale:
-1. Assicurati di utilizzare una versione di Python supportata (consigliato **Python 3.10 - 3.13**).
-2. Installa le dipendenze aggiuntive:
-   ```bash
-   pip install -r requirements-tts.txt
-   ```
-   *(Nota: Se riscontri errori di build su Windows per `spacy`, dovrai installare i build tools di Visual Studio C++ sul tuo PC).*
-3. Al primo utilizzo di Kokoro, la libreria scaricherà automaticamente il modello ONNX (`kokoro-v0_19.onnx`) e le voci in locale.
+> [!NOTE]
+> Fino a quando il download in background non è completato (o in caso di assenza temporanea di connessione internet), il backend genererà automaticamente un **bip sinusoidale modulato (modalità Fallback)**. Questo garantisce che le chiamate API non falliscano mai e il client Flutter possa comunque riprodurre l'audio per testare l'animazione dell'avatar.
+
+### Aggiungere voci personalizzate:
+Puoi aggiungere modelli vocali aggiuntivi scaricandoli manualmente dal repository Hugging Face [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main).
+Inserisci i file `.onnx` e `.json` nella cartella `backend/bin/piper/voices/`. Il nome della voce passato nella richiesta API deve corrispondere esattamente al nome del file (es: `it_IT-paola-medium`). Il backend tenterà di scaricarla automaticamente se non presente localmente!
 
 ---
 
@@ -51,10 +50,17 @@ DEFAULT_MODEL=llama3:latest
 APP_ENV=development
 
 # Configurazione TTS locale
-TTS_PROVIDER=kokoro
-TTS_DEFAULT_VOICE=af_heart
+TTS_PROVIDER=piper
+TTS_DEFAULT_VOICE=it_IT-riccardo-x_low
 TTS_DEFAULT_SPEED=1.0
-TTS_DEFAULT_LANG=a
+TTS_DEFAULT_LANG=it
+
+# Impostazioni specifiche per Piper
+# Se lasciati vuoti, verranno scaricati automaticamente i modelli di default
+PIPER_MODEL_PATH=
+PIPER_CONFIG_PATH=
+# Directory per salvare i file audio WAV generati
+AUDIO_OUTPUT_DIR=app/static/generated_audio
 
 # Impostazioni di Hardening & Timeout (in secondi)
 REQUEST_TIMEOUT_SECONDS=60.0
@@ -73,7 +79,6 @@ MAX_CONTEXT_MESSAGES=20
 # Sicurezza CORS (* per sviluppo locale, oppure lista di URL esatti)
 CORS_ORIGINS=*
 ```
-*(Nota: `TTS_DEFAULT_LANG` accetta `a` per inglese US, `b` per inglese UK, `i` per italiano, `j` per giapponese)*.
 
 ### 2. Creare un ambiente virtuale (venv)
 **Su Windows:**
@@ -98,6 +103,7 @@ Oppure manualmente:
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
+
 Il server sarà attivo su `http://127.0.0.1:8000` con documentazione interattiva su `http://127.0.0.1:8000/docs`.
 
 ---
@@ -111,7 +117,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/tts \
      -H "Content-Type: application/json" \
      -d '{
        "text": "Ciao! Sono Hatsune Miku, la tua assistente vocale.",
-       "voice": "af_heart",
+       "voice": "it_IT-riccardo-x_low",
        "speed": 1.0
      }'
 ```
@@ -121,7 +127,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/tts \
   "success": true,
   "audio_url": "http://127.0.0.1:8000/static/generated_audio/audio_9a7fd...wav",
   "text": "Ciao! Sono Hatsune Miku, la tua assistente vocale.",
-  "voice": "af_heart",
+  "voice": "it_IT-riccardo-x_low",
   "speed": 1.0
 }
 ```
@@ -167,50 +173,5 @@ Il backend implementa un meccanismo automatico di auto-pulizia nel file `app/ser
 Il backend implementa diverse misure di sicurezza industriale per prevenire abusi e garantire la fluidità del server:
 1. **Rate Limiting Globale e Specifico**: Ogni richiesta viene tracciata in base all'IP del client. Richieste ripetute e veloci restituiranno un errore `429 Too Many Requests`.
 2. **Correlation ID (`X-Request-ID`)**: Ogni chiamata riceve un UUID univoco propagato sia nei log del server che nell'header della risposta HTTP. Questo rende il tracciamento degli errori immediato.
-3. **Concorrenza Non-Blocking**: La sintesi vocale (Kokoro o Fallback sinusoidale) è CPU-bound. Viene delegata a un **Thread Pool separato** (`run_in_threadpool`), evitando di bloccare l'Event Loop di FastAPI.
+3. **Concorrenza Non-Blocking**: La sintesi vocale (Piper) è CPU-bound. Viene delegata a un **Thread Pool separato** (`run_in_threadpool`), evitando di bloccare l'Event Loop di FastAPI.
 4. **Validazione Rigida degli Input**: Pydantic convalida che i messaggi di chat non superino i `MAX_INPUT_CHARS` (2000 caratteri), lo storico non contenga troppi messaggi, e i parametri TTS (velocità e formato nome voce) siano conformi.
-
----
-
-## Come Testare Limiti, Timeout e Validazioni
-
-### 1. Testare il Rate Limiting (Blocco 429)
-Invia più richieste rapide consecutive a `/api/v1/tts` o `/api/v1/chat`:
-```bash
-for ($i=1; $i -le 10; $i++) { Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/v1/tts" -Method Post -ContentType "application/json" -Body '{"text": "Test"}' }
-```
-Dovresti ricevere un errore `429` strutturato così:
-```json
-{
-  "success": false,
-  "error": {
-    "code": "RATE_LIMIT_EXCEEDED",
-    "message": "Troppe richieste inviate. Riprova più tardi. Dettaglio: 5 per 1 minute",
-    "request_id": "abc123xx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  }
-}
-```
-
-### 2. Testare la Validazione degli Input (Blocco 400)
-Invia un testo di chat vuoto o che supera i 2000 caratteri:
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/chat \
-     -H "Content-Type: application/json" \
-     -d '{"messages": [{"role": "user", "content": " "}]}'
-```
-Risposta attesa:
-```json
-{
-  "success": false,
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Errore di validazione: body -> messages -> 0 -> content: Il contenuto del messaggio non può essere vuoto."
-  }
-}
-```
-
-### 3. Testare i Timeout (Blocco 504)
-1. Modifica temporaneamente nel file `.env` il valore `REQUEST_TIMEOUT_SECONDS=0.01`.
-2. Riavvia il server ed esegui una chat.
-3. Riceverai un errore `504 Gateway Timeout` con il codice `OLLAMA_TIMEOUT`.
-

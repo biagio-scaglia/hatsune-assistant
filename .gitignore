@@ -48,3 +48,10 @@ app.*.map.json
 **/venv/
 **/__pycache__/
 **/.env
+
+# Piper standalone binaries & downloaded voice models
+backend/bin/
+
+# Generated audio assets
+backend/app/static/generated_audio/*.wav
+

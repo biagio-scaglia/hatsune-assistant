@@ -26,11 +26,11 @@ class TTSRequest(BaseModel):
     @classmethod
     def validate_voice(cls, v: Optional[str]) -> Optional[str]:
         if v is not None:
-            voice_clean = v.strip().lower()
+            voice_clean = v.strip()
             if not voice_clean:
                 return None
-            if not re.match(r'^[a-z0-9_]+$', voice_clean):
-                raise ValueError("Il nome della voce può contenere solo caratteri alfanumerici e underscore (es: af_heart).")
+            if not re.match(r'^[a-zA-Z0-9_\-]+$', voice_clean):
+                raise ValueError("Il nome della voce può contenere solo caratteri alfanumerici, trattini e underscore (es: it_IT-riccardo-x_low).")
             return voice_clean
         return v
 
@@ -83,11 +83,11 @@ class ChatWithTTSRequest(BaseModel):
     @classmethod
     def validate_voice(cls, v: Optional[str]) -> Optional[str]:
         if v is not None:
-            voice_clean = v.strip().lower()
+            voice_clean = v.strip()
             if not voice_clean:
                 return None
-            if not re.match(r'^[a-z0-9_]+$', voice_clean):
-                raise ValueError("Il nome della voce può contenere solo caratteri alfanumerici e underscore (es: af_heart).")
+            if not re.match(r'^[a-zA-Z0-9_\-]+$', voice_clean):
+                raise ValueError("Il nome della voce può contenere solo caratteri alfanumerici, trattini e underscore (es: it_IT-riccardo-x_low).")
             return voice_clean
         return v
 

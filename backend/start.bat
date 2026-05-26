@@ -32,9 +32,10 @@ if errorlevel 1 goto pip_error
 echo [OK] Dipendenze core verificate.
 echo.
 
-:: 3b. Nota sulle dipendenze TTS (Kokoro)
-echo [INFO] Servizio TTS (Kokoro) disattivato di default per evitare errori di compilazione spacy su Python 3.14.
-echo [INFO] Il backend si avviera' in MODALITA' FALLBACK (sintesi sinusoidale interna).
+:: 3b. Nota sulle dipendenze TTS (Piper)
+echo [INFO] Servizio TTS impostato su Piper (C++ standalone locale).
+echo [INFO] Il server si avviera' immediatamente e scarichera' i binari e i modelli in background.
+echo [INFO] Fino al termine del download, le richieste TTS useranno la MODALITA' FALLBACK (bip sinusoidale).
 echo.
 
 :: 4. Avvio di Uvicorn

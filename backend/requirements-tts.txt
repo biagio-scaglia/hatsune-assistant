@@ -1,3 +1,2 @@
-soundfile>=0.12.1
-numpy>=1.22.0,<2.0.0
-kokoro>=0.1.9
+# Piper TTS locale non richiede dipendenze Python complesse.
+# Viene eseguito come binario C++ standalone (piper.exe) richiamato tramite subprocess.

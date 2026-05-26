@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -10,10 +11,14 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
 
     # Impostazioni TTS Locale
-    TTS_PROVIDER: str = "kokoro"
-    TTS_DEFAULT_VOICE: str = "af_heart"
+    TTS_PROVIDER: str = "piper"
+    TTS_DEFAULT_VOICE: str = "it_IT-riccardo-x_low"
     TTS_DEFAULT_SPEED: float = 1.0
-    TTS_DEFAULT_LANG: str = "a"
+    TTS_DEFAULT_LANG: str = "it"
+    PIPER_MODEL_PATH: Optional[str] = None
+    PIPER_CONFIG_PATH: Optional[str] = None
+    AUDIO_OUTPUT_DIR: str = "app/static/generated_audio"
+
 
     # Impostazioni di Hardening & Timeout
     REQUEST_TIMEOUT_SECONDS: float = 60.0
