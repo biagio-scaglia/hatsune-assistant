@@ -21,6 +21,8 @@ os.makedirs(AUDIO_DIR, exist_ok=True)
 # Tentativo di caricamento di Kokoro e dipendenze
 has_kokoro = False
 pipeline = None
+np = None
+sf = None
 
 try:
     from kokoro import KPipeline
@@ -32,6 +34,8 @@ try:
     has_kokoro = True
     logger.info(f"[TTS] Kokoro TTS caricato con successo con lingua: {settings.TTS_DEFAULT_LANG}")
 except Exception as e:
+    np = None
+    sf = None
     logger.warning(
         f"[TTS] Kokoro TTS o soundfile non caricati ({e}). "
         "Verra' utilizzata la modalita' Fallback (sintesi sinusoidale)."
@@ -64,7 +68,7 @@ class TTSService(BaseTTSService):
         filename = f"audio_{uuid.uuid4().hex}.wav"
         filepath = os.path.join(AUDIO_DIR, filename)
 
-        if has_kokoro and pipeline is not None:
+        if has_kokoro and pipeline is not None and np is not None and sf is not None:
             try:
                 # Esegue la sintesi vocale con Kokoro
                 # split_pattern serve a gestire frasi lunghe andando a capo
