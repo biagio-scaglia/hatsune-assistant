@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from slowapi.errors import RateLimitExceeded
 
 class BaseAIException(Exception):
     """Eccezione base per il nostro backend AI."""
@@ -39,26 +41,92 @@ def register_exception_handlers(app: FastAPI) -> None:
     
     @app.exception_handler(BaseAIException)
     async def ai_exception_handler(request: Request, exc: BaseAIException):
+        request_id = getattr(request.state, "request_id", None)
+        content = {
+            "success": False,
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+            }
+        }
+        if request_id:
+            content["error"]["request_id"] = request_id
+            
         return JSONResponse(
             status_code=exc.status_code,
-            content={
-                "success": False,
-                "error": {
-                    "code": exc.code,
-                    "message": exc.message,
-                }
+            content=content
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        request_id = getattr(request.state, "request_id", None)
+        
+        # Costruiamo un messaggio leggibile dai dettagli degli errori
+        errors_details = {}
+        error_messages = []
+        for error in exc.errors():
+            loc = " -> ".join(str(l) for l in error.get("loc", []))
+            msg = error.get("msg", "Valore non valido")
+            errors_details[loc] = msg
+            error_messages.append(f"{loc}: {msg}")
+            
+        friendly_message = "Errore di validazione: " + "; ".join(error_messages)
+        
+        content = {
+            "success": False,
+            "error": {
+                "code": "VALIDATION_ERROR",
+                "message": friendly_message,
+                "details": errors_details
             }
+        }
+        if request_id:
+            content["error"]["request_id"] = request_id
+
+        return JSONResponse(
+            status_code=400,
+            content=content
+        )
+
+    @app.exception_handler(RateLimitExceeded)
+    async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded):
+        request_id = getattr(request.state, "request_id", None)
+        
+        content = {
+            "success": False,
+            "error": {
+                "code": "RATE_LIMIT_EXCEEDED",
+                "message": f"Troppe richieste inviate. Riprova più tardi. Dettaglio: {exc.detail}"
+            }
+        }
+        if request_id:
+            content["error"]["request_id"] = request_id
+            
+        headers = {}
+        if hasattr(exc, "retry_after") and exc.retry_after:
+            headers["Retry-After"] = str(exc.retry_after)
+
+        return JSONResponse(
+            status_code=429,
+            content=content,
+            headers=headers if headers else None
         )
         
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception):
+        request_id = getattr(request.state, "request_id", None)
+        
+        content = {
+            "success": False,
+            "error": {
+                "code": "UNEXPECTED_ERROR",
+                "message": f"Si è verificato un errore inatteso nel backend: {str(exc)}",
+            }
+        }
+        if request_id:
+            content["error"]["request_id"] = request_id
+            
         return JSONResponse(
             status_code=500,
-            content={
-                "success": False,
-                "error": {
-                    "code": "UNEXPECTED_ERROR",
-                    "message": f"Si è verificato un errore inatteso nel backend: {str(exc)}",
-                }
-            }
+            content=content
         )

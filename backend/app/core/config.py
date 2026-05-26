@@ -15,6 +15,23 @@ class Settings(BaseSettings):
     TTS_DEFAULT_SPEED: float = 1.0
     TTS_DEFAULT_LANG: str = "a"
 
+    # Impostazioni di Hardening & Timeout
+    REQUEST_TIMEOUT_SECONDS: float = 60.0
+    STREAM_TIMEOUT_SECONDS: float = 90.0
+
+    # Rate Limiting
+    RATE_LIMIT_GLOBAL: str = "100/minute"
+    RATE_LIMIT_CHAT: str = "15/minute"
+    RATE_LIMIT_TTS: str = "5/minute"
+    RATE_LIMIT_HEALTH: str = "120/minute"
+
+    # Validazione Input
+    MAX_INPUT_CHARS: int = 2000
+    MAX_CONTEXT_MESSAGES: int = 20
+
+    # Sicurezza CORS
+    CORS_ORIGINS: str = "*"
+
     # Configura Pydantic per leggere dal file .env nella radice del backend
     model_config = SettingsConfigDict(
         env_file=os.path.join(

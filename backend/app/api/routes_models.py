@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from ..core.config import settings
+from ..core.rate_limit import limiter
 from ..schemas.model import ModelsListResponse, DefaultModelResponse, ConfigResponse
 from ..services.ollama_service import OllamaService
 
@@ -7,7 +8,8 @@ router = APIRouter()
 ollama_service = OllamaService()
 
 @router.get("/models", response_model=ModelsListResponse)
-async def list_models():
+@limiter.limit(settings.RATE_LIMIT_GLOBAL)
+async def list_models(request: Request):
     """
     Ritorna la lista dei modelli caricati localmente ed eseguibili in Ollama.
     """
@@ -18,7 +20,8 @@ async def list_models():
     )
 
 @router.get("/models/default", response_model=DefaultModelResponse)
-async def get_default_model():
+@limiter.limit(settings.RATE_LIMIT_GLOBAL)
+async def get_default_model(request: Request):
     """
     Ritorna il nome del modello predefinito configurato nel file .env.
     """
@@ -29,7 +32,8 @@ async def get_default_model():
     )
 
 @router.get("/config", response_model=ConfigResponse)
-async def get_configuration():
+@limiter.limit(settings.RATE_LIMIT_GLOBAL)
+async def get_configuration(request: Request):
     """
     Espone alcune variabili di configurazione utili al frontend.
     """

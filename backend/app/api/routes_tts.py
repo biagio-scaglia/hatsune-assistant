@@ -2,6 +2,7 @@ from datetime import datetime
 import logging
 from fastapi import APIRouter, Request, HTTPException
 from ..core.config import settings
+from ..core.rate_limit import limiter
 from ..schemas.chat import Message
 from ..schemas.tts import TTSRequest, TTSResponse, ChatWithTTSRequest, ChatWithTTSResponse
 from ..services.ollama_service import OllamaService
@@ -14,50 +15,66 @@ ollama_service = OllamaService()
 tts_service = TTSService()
 
 @router.post("/tts", response_model=TTSResponse)
-async def synthesize_text(request: TTSRequest, req: Request):
+@limiter.limit(settings.RATE_LIMIT_TTS)
+async def synthesize_text(tts_request: TTSRequest, request: Request):
     """
     Sintetizza il testo fornito in un file audio WAV riproducibile.
     Costruisce e restituisce l'URL statico del file audio generato.
     """
+    request_id = getattr(request.state, "request_id", "unknown")
+    voice = tts_request.voice or settings.TTS_DEFAULT_VOICE
+    speed = tts_request.speed or settings.TTS_DEFAULT_SPEED
+    
+    logger.info(f"[{request_id}] Richiesta TTS. Caratteri: {len(tts_request.text)} | Voce: {voice} | Velocità: {speed}")
+    
     try:
         filename = await tts_service.synthesize(
-            text=request.text,
-            voice=request.voice,
-            speed=request.speed
+            text=tts_request.text,
+            voice=tts_request.voice,
+            speed=tts_request.speed
         )
         
-        # Costruzione dell'URL assoluto statico dynamically
-        base_url = str(req.base_url) # Esempio: http://127.0.0.1:8000/
+        base_url = str(request.base_url)
         audio_url = f"{base_url}static/generated_audio/{filename}"
+        
+        logger.info(f"[{request_id}] TTS completato con successo. File: {filename}")
         
         return TTSResponse(
             success=True,
             audio_url=audio_url,
-            text=request.text,
-            voice=request.voice or settings.TTS_DEFAULT_VOICE,
-            speed=request.speed or settings.TTS_DEFAULT_SPEED
+            text=tts_request.text,
+            voice=voice,
+            speed=speed
         )
     except ValueError as ve:
+        logger.warning(f"[{request_id}] Errore validazione TTS: {ve}")
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        logger.error(f"Errore endpoint /tts: {e}")
+        logger.error(f"[{request_id}] Errore endpoint /tts: {e}")
         raise HTTPException(
             status_code=500, 
             detail=f"Errore di sintesi vocale interno: {str(e)}"
         )
 
 @router.post("/chat-with-tts", response_model=ChatWithTTSResponse)
-async def chat_with_tts(request: ChatWithTTSRequest, req: Request):
+@limiter.limit(settings.RATE_LIMIT_TTS)
+async def chat_with_tts(chat_with_tts_request: ChatWithTTSRequest, request: Request):
     """
     Pipeline unificata (Chat + TTS):
     1. Invia la cronologia dei messaggi ad Ollama per generare la risposta testuale.
     2. Sintetizza la risposta in audio WAV.
     3. Ritorna il testo ed il link dell'audio al client Flutter.
     """
-    model = request.model or settings.DEFAULT_MODEL
+    request_id = getattr(request.state, "request_id", "unknown")
+    model = chat_with_tts_request.model or settings.DEFAULT_MODEL
+    voice = chat_with_tts_request.voice or settings.TTS_DEFAULT_VOICE
+    speed = chat_with_tts_request.speed or settings.TTS_DEFAULT_SPEED
+    
+    logger.info(f"[{request_id}] Richiesta Chat-With-TTS. Modello: {model} | Messaggi: {len(chat_with_tts_request.messages)} | Voce: {voice}")
+    
     ollama_messages = [
         {"role": msg.role, "content": msg.content} 
-        for msg in request.messages
+        for msg in chat_with_tts_request.messages
     ]
     
     # 1. Chiama Ollama per ottenere la risposta di testo
@@ -65,11 +82,10 @@ async def chat_with_tts(request: ChatWithTTSRequest, req: Request):
         response_data = await ollama_service.chat(
             model=model,
             messages=ollama_messages,
-            temperature=request.temperature
+            temperature=chat_with_tts_request.temperature
         )
     except Exception as e:
-        logger.error(f"Errore chiamata Ollama in chat-with-tts: {e}")
-        # Se fallisce Ollama (LLM principale), solleviamo l'errore perche' non c'e' testo da leggere
+        logger.error(f"[{request_id}] Errore chiamata Ollama in chat-with-tts: {e}")
         raise
         
     assistant_content = response_data.get("message", {}).get("content", "")
@@ -81,19 +97,18 @@ async def chat_with_tts(request: ChatWithTTSRequest, req: Request):
     
     if assistant_content.strip():
         try:
+            logger.info(f"[{request_id}] Generazione audio per risposta di {len(assistant_content)} caratteri...")
             filename = await tts_service.synthesize(
                 text=assistant_content,
-                voice=request.voice,
-                speed=request.speed
+                voice=chat_with_tts_request.voice,
+                speed=chat_with_tts_request.speed
             )
-            base_url = str(req.base_url)
+            base_url = str(request.base_url)
             audio_url = f"{base_url}static/generated_audio/{filename}"
             tts_active = True
+            logger.info(f"[{request_id}] Audio sintetizzato con successo per la chat. File: {filename}")
         except Exception as e:
-            # Molto importante: se il TTS fallisce (es. per timeout o HW), NON blocchiamo
-            # l'intera risposta. Restituiamo comunque il testo generato da Ollama
-            # per una migliore tolleranza ai guasti (Fault Tolerance)
-            logger.error(f"Sintesi vocale fallita in chat-with-tts ma continuo: {e}")
+            logger.error(f"[{request_id}] Sintesi vocale fallita in chat-with-tts ma continuo: {e}")
             tts_active = False
 
     return ChatWithTTSResponse(

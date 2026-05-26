@@ -5,6 +5,8 @@ from fastapi.staticfiles import StaticFiles
 from .core.config import settings
 from .core.logging import setup_logging
 from .core.exceptions import register_exception_handlers
+from .core.rate_limit import limiter
+from .core.middleware import TracingMiddleware
 from .api import routes_health, routes_models, routes_chat, routes_tts
 
 # Configura il logging all'avvio
@@ -13,14 +15,22 @@ setup_logging()
 # Inizializza l'applicazione FastAPI
 app = FastAPI(
     title="Hatsune Assistant AI Backend",
-    description="API Bridge tra il frontend Flutter e Ollama locale/cloud, con integrazione Kokoro TTS",
-    version="1.1.0"
+    description="API Bridge con rate limiting, timeout e tracciamento tra frontend Flutter ed Ollama/TTS locale",
+    version="1.2.0"
 )
 
-# Configura CORS per consentire connessioni dal frontend Flutter (Web, Mobile, Desktop)
+# Associa il limiter all'app per slowapi
+app.state.limiter = limiter
+
+# Aggiunge il middleware per Correlation ID (Request-ID) e log profiling delle chiamate
+app.add_middleware(TracingMiddleware)
+
+# Configura le origini permesse per il CORS da variabili d'ambiente
+cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Consenti tutte le origini per sviluppo locale
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,6 +58,7 @@ async def root():
     return {
         "app": "Hatsune Assistant AI Backend",
         "status": "active",
+        "version": "1.2.0",
         "tts_provider": settings.TTS_PROVIDER,
         "documentation": "/docs"
     }

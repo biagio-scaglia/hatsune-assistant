@@ -44,7 +44,7 @@ Se desideri attivare la sintesi vocale reale generata da Kokoro TTS locale:
 ## Configurazione Rapida
 
 ### 1. File delle variabili d'ambiente (.env)
-Il file `.env` contiene le chiavi di configurazione per Ollama e per la sintesi vocale:
+Il file `.env` contiene le chiavi di configurazione per Ollama, la sintesi vocale, i timeout e i limiti di sicurezza:
 ```ini
 OLLAMA_BASE_URL=http://localhost:11434
 DEFAULT_MODEL=llama3:latest
@@ -55,6 +55,23 @@ TTS_PROVIDER=kokoro
 TTS_DEFAULT_VOICE=af_heart
 TTS_DEFAULT_SPEED=1.0
 TTS_DEFAULT_LANG=a
+
+# Impostazioni di Hardening & Timeout (in secondi)
+REQUEST_TIMEOUT_SECONDS=60.0
+STREAM_TIMEOUT_SECONDS=90.0
+
+# Rate Limiting (richieste per IP)
+RATE_LIMIT_GLOBAL=100/minute
+RATE_LIMIT_CHAT=15/minute
+RATE_LIMIT_TTS=5/minute
+RATE_LIMIT_HEALTH=120/minute
+
+# Validazione Input
+MAX_INPUT_CHARS=2000
+MAX_CONTEXT_MESSAGES=20
+
+# Sicurezza CORS (* per sviluppo locale, oppure lista di URL esatti)
+CORS_ORIGINS=*
 ```
 *(Nota: `TTS_DEFAULT_LANG` accetta `a` per inglese US, `b` per inglese UK, `i` per italiano, `j` per giapponese)*.
 
@@ -142,3 +159,58 @@ curl -X POST http://127.0.0.1:8000/api/v1/chat-with-tts \
 Il backend implementa un meccanismo automatico di auto-pulizia nel file `app/services/tts_service.py`:
 - All'avvio di ogni sintesi, rimuove i file `.wav` più vecchi di 10 minuti.
 - Limita il numero massimo di file audio conservati nella cartella `static/generated_audio` a un tetto di 50. I file in eccesso vengono eliminati partendo dal più vecchio.
+
+---
+
+## Hardening, Rate Limiting & Concorrenza
+
+Il backend implementa diverse misure di sicurezza industriale per prevenire abusi e garantire la fluidità del server:
+1. **Rate Limiting Globale e Specifico**: Ogni richiesta viene tracciata in base all'IP del client. Richieste ripetute e veloci restituiranno un errore `429 Too Many Requests`.
+2. **Correlation ID (`X-Request-ID`)**: Ogni chiamata riceve un UUID univoco propagato sia nei log del server che nell'header della risposta HTTP. Questo rende il tracciamento degli errori immediato.
+3. **Concorrenza Non-Blocking**: La sintesi vocale (Kokoro o Fallback sinusoidale) è CPU-bound. Viene delegata a un **Thread Pool separato** (`run_in_threadpool`), evitando di bloccare l'Event Loop di FastAPI.
+4. **Validazione Rigida degli Input**: Pydantic convalida che i messaggi di chat non superino i `MAX_INPUT_CHARS` (2000 caratteri), lo storico non contenga troppi messaggi, e i parametri TTS (velocità e formato nome voce) siano conformi.
+
+---
+
+## Come Testare Limiti, Timeout e Validazioni
+
+### 1. Testare il Rate Limiting (Blocco 429)
+Invia più richieste rapide consecutive a `/api/v1/tts` o `/api/v1/chat`:
+```bash
+for ($i=1; $i -le 10; $i++) { Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/v1/tts" -Method Post -ContentType "application/json" -Body '{"text": "Test"}' }
+```
+Dovresti ricevere un errore `429` strutturato così:
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Troppe richieste inviate. Riprova più tardi. Dettaglio: 5 per 1 minute",
+    "request_id": "abc123xx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  }
+}
+```
+
+### 2. Testare la Validazione degli Input (Blocco 400)
+Invia un testo di chat vuoto o che supera i 2000 caratteri:
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/chat \
+     -H "Content-Type: application/json" \
+     -d '{"messages": [{"role": "user", "content": " "}]}'
+```
+Risposta attesa:
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Errore di validazione: body -> messages -> 0 -> content: Il contenuto del messaggio non può essere vuoto."
+  }
+}
+```
+
+### 3. Testare i Timeout (Blocco 504)
+1. Modifica temporaneamente nel file `.env` il valore `REQUEST_TIMEOUT_SECONDS=0.01`.
+2. Riavvia il server ed esegui una chat.
+3. Riceverai un errore `504 Gateway Timeout` con il codice `OLLAMA_TIMEOUT`.
+

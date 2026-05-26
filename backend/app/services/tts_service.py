@@ -5,6 +5,7 @@ import struct
 import wave
 import logging
 from typing import Optional
+from starlette.concurrency import run_in_threadpool
 from ..core.config import settings
 from .base_tts import BaseTTSService
 
@@ -56,7 +57,7 @@ class TTSService(BaseTTSService):
     ) -> str:
         """
         Sintetizza il testo e salva il file audio in formato WAV.
-        Restituisce solo il nome del file generato.
+        Esegue l'operazione in un thread pool separato per evitare blocchi dell'event loop.
         """
         if not text.strip():
             raise ValueError("Il testo per la sintesi vocale non puo' essere vuoto.")
@@ -68,14 +69,35 @@ class TTSService(BaseTTSService):
         filename = f"audio_{uuid.uuid4().hex}.wav"
         filepath = os.path.join(AUDIO_DIR, filename)
 
+        # Delega l'elaborazione pesante sincrona a un thread pool
+        await run_in_threadpool(
+            self._synthesize_sync,
+            text=text,
+            filepath=filepath,
+            voice=active_voice,
+            speed=active_speed
+        )
+
+        return filename
+
+    def _synthesize_sync(
+        self,
+        text: str,
+        filepath: str,
+        voice: str,
+        speed: float
+    ) -> None:
+        """
+        Elaborazione sincrona e CPU-bound per generare il file WAV.
+        Viene eseguito nel thread pool.
+        """
         if has_kokoro and pipeline is not None and np is not None and sf is not None:
             try:
                 # Esegue la sintesi vocale con Kokoro
-                # split_pattern serve a gestire frasi lunghe andando a capo
                 generator = pipeline(
                     text,
-                    voice=active_voice,
-                    speed=active_speed,
+                    voice=voice,
+                    speed=speed,
                     split_pattern=r'\n+'
                 )
 
@@ -87,9 +109,9 @@ class TTSService(BaseTTSService):
                     # Concatena i blocchi audio generati da Kokoro e scrive il file WAV
                     concatenated_audio = np.concatenate(audio_chunks)
                     sf.write(filepath, concatenated_audio, 24000)
-                    logger.info(f"[TTS] Audio generato tramite Kokoro TTS: {filename} (voce: {active_voice}, speed: {active_speed})")
+                    logger.info(f"[TTS] Audio generato tramite Kokoro TTS: {os.path.basename(filepath)} (voce: {voice}, speed: {speed})")
                     self._cleanup_old_files()
-                    return filename
+                    return
                 else:
                     logger.warning("[TTS] Il generatore Kokoro ha restituito chunk vuoti. Eseguo fallback.")
             except Exception as e:
@@ -97,9 +119,8 @@ class TTSService(BaseTTSService):
 
         # Se Kokoro non è installato o fallisce, utilizziamo il fallback a onda sinusoidale (beep)
         self._generate_fallback_wav(filepath, text)
-        logger.info(f"[TTS] Audio generato in modalita' Fallback (beep sinusoidale): {filename}")
+        logger.info(f"[TTS] Audio generato in modalita' Fallback (beep sinusoidale): {os.path.basename(filepath)}")
         self._cleanup_old_files()
-        return filename
 
     def _generate_fallback_wav(self, filepath: str, text: str):
         """

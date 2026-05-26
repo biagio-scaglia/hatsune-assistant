@@ -21,8 +21,18 @@ class OllamaService(BaseLLMService):
 
     def __init__(self):
         self.base_url = settings.OLLAMA_BASE_URL.rstrip('/')
-        # Configurazione standard del client HTTP con timeout specifici
-        self.timeout_config = httpx.Timeout(10.0, connect=5.0, read=90.0)
+        # Configurazione per richieste standard (es: chat, list models)
+        self.timeout_config = httpx.Timeout(
+            settings.REQUEST_TIMEOUT_SECONDS, 
+            connect=5.0, 
+            read=max(settings.REQUEST_TIMEOUT_SECONDS - 5.0, 5.0)
+        )
+        # Configurazione per richieste in streaming
+        self.stream_timeout_config = httpx.Timeout(
+            settings.STREAM_TIMEOUT_SECONDS,
+            connect=5.0,
+            read=max(settings.STREAM_TIMEOUT_SECONDS - 5.0, 5.0)
+        )
 
     async def check_health(self) -> Dict[str, Any]:
         """
@@ -147,7 +157,7 @@ class OllamaService(BaseLLMService):
             payload["options"] = {"temperature": temperature}
 
         async def generator() -> AsyncGenerator[str, None]:
-            async with httpx.AsyncClient(timeout=self.timeout_config) as client:
+            async with httpx.AsyncClient(timeout=self.stream_timeout_config) as client:
                 try:
                     async with client.stream(
                         "POST",
