@@ -13,6 +13,7 @@ dependencies:
   google_fonts: ^6.2.1
   http: ^1.2.1
   audioplayers: ^6.4.0
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:

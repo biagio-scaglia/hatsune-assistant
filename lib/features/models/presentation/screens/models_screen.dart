@@ -50,7 +50,7 @@ class _ModelsScreenState extends State<ModelsScreen> {
                 ),
                 // Icona di caricamento modelli
                 if (widget.state.isLoadingModels)
-                  const SizedBox(
+                  SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
@@ -113,7 +113,7 @@ class _ModelsScreenState extends State<ModelsScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: AppRadius.borderRadiusMd,
-              borderSide: const BorderSide(color: AppColors.primary),
+              borderSide: BorderSide(color: AppColors.primary),
             ),
             contentPadding: const EdgeInsets.symmetric(vertical: 0),
           ),
@@ -339,9 +339,9 @@ class _ModelTile extends StatelessWidget {
       onPressed: onActivate,
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-        side: const BorderSide(color: AppColors.primary),
+        side: BorderSide(color: AppColors.primary),
       ),
-      child: const Text('Attiva', style: TextStyle(color: AppColors.primary, fontSize: 11)),
+      child: Text('Attiva', style: TextStyle(color: AppColors.primary, fontSize: 11)),
     );
   }
 }

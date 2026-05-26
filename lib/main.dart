@@ -19,11 +19,16 @@ class AssistantApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Hatsune Assistant',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
-      home: AppShell(state: state),
+    return ListenableBuilder(
+      listenable: state,
+      builder: (context, _) {
+        return MaterialApp(
+          title: 'Hatsune Assistant',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.dark,
+          home: AppShell(state: state),
+        );
+      },
     );
   }
 }

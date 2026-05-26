@@ -105,7 +105,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
               ),
               child: IconButton(
                 icon: widget.isThinking
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
@@ -113,7 +113,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                           valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
                         ),
                       )
-                    : const Icon(
+                    : Icon(
                         Icons.send_rounded,
                         color: AppColors.primary,
                         size: 20,

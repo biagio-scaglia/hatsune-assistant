@@ -45,7 +45,7 @@ class Miku3DViewer extends StatelessWidget {
           children: [
             // Model Viewer interattivo o segnaposto di test
             if (isTesting)
-              const Center(
+              Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

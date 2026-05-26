@@ -22,7 +22,7 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: AppColors.background,
-      colorScheme: const ColorScheme.dark(
+      colorScheme: ColorScheme.dark(
         primary: AppColors.primary,
         secondary: AppColors.secondary,
         surface: AppColors.surface,
@@ -74,7 +74,7 @@ class AppTheme {
         indicatorColor: AppColors.primary.withValues(alpha: 0.15),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: AppColors.primary);
+            return IconThemeData(color: AppColors.primary);
           }
           return const IconThemeData(color: AppColors.textSecondary);
         }),
@@ -89,7 +89,7 @@ class AppTheme {
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: AppColors.surface,
         indicatorColor: AppColors.primary.withValues(alpha: 0.15),
-        selectedIconTheme: const IconThemeData(color: AppColors.primary, size: 28),
+        selectedIconTheme: IconThemeData(color: AppColors.primary, size: 28),
         unselectedIconTheme: const IconThemeData(color: AppColors.textSecondary, size: 24),
         selectedLabelTextStyle: GoogleFonts.inter(
           color: AppColors.primary,

@@ -85,61 +85,60 @@ class ChatMessageBubble extends StatelessWidget {
                     bottomLeft: isUser ? const Radius.circular(AppRadius.md) : Radius.zero,
                     bottomRight: isUser ? Radius.zero : const Radius.circular(AppRadius.md),
                   ),
-                  child: IntrinsicWidth(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Riga d'accento decorativa cyberpunk a sinistra per Miku
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (!isUser)
-                              Container(
-                                width: 3.5,
-                                height: 38,
-                                decoration: const BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [AppColors.primary, AppColors.secondary],
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                  ),
-                                ),
-                              ),
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                                child: SelectableText(
-                                  text,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14.5,
-                                    height: 1.45,
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.w400,
-                                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Riga d'accento decorativa cyberpunk a sinistra per Miku
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (!isUser)
+                            Container(
+                              width: 3.5,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [AppColors.primary, AppColors.secondary],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
                                 ),
                               ),
                             ),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                              child: SelectableText(
+                                text,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14.5,
+                                  height: 1.45,
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      // Timestamp e feedback copia
+                      Padding(
+                        padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Text(
+                              time,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.textMuted,
+                                    fontSize: 10,
+                                  ),
+                            ),
                           ],
                         ),
-                        
-                        // Timestamp e feedback copia
-                        Padding(
-                          padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Text(
-                                time,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: AppColors.textMuted,
-                                      fontSize: 10,
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),

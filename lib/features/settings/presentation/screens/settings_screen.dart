@@ -112,7 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: AppRadius.borderRadiusSm,
-                                    borderSide: const BorderSide(color: AppColors.primary),
+                                    borderSide: BorderSide(color: AppColors.primary),
                                   ),
                                 ),
                                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
@@ -164,7 +164,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: AppRadius.borderRadiusSm,
-                                    borderSide: const BorderSide(color: AppColors.primary),
+                                    borderSide: BorderSide(color: AppColors.primary),
                                   ),
                                 ),
                                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
@@ -250,7 +250,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: const Text('Impostato per risparmiare VRAM del server', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                   trailing: Text(
                     widget.state.tokenContextLimit.toString(),
-                    style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
                   ),
                   onTap: () {
                     final nextLimit = widget.state.tokenContextLimit == 4096
@@ -284,7 +284,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       borderRadius: AppRadius.borderRadiusSm,
                       border: Border.all(color: AppColors.primary),
                     ),
-                    child: const Text('STABLE', style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold)),
+                    child: Text('STABLE', style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],

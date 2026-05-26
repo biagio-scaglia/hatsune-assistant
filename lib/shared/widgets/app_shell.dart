@@ -55,6 +55,33 @@ class _AppShellState extends State<AppShell> {
                 ? "Ollama: Connesso (${widget.state.activeModel?.name ?? 'nessuno'})"
                 : "Ollama: Disconnesso",
             isOnline: widget.state.isConnected,
+            onClearChat: _currentIndex == 1 ? () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  backgroundColor: AppColors.surface,
+                  title: const Text('Cancella Cronologia', style: TextStyle(color: AppColors.textPrimary)),
+                  content: const Text('Sei sicuro di voler cancellare tutta la cronologia della chat sia in locale che sul database?', style: TextStyle(color: AppColors.textSecondary)),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('Annulla', style: TextStyle(color: AppColors.textSecondary)),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.error,
+                        foregroundColor: AppColors.textPrimary,
+                      ),
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text('Cancella'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                widget.state.clearChat();
+              }
+            } : null,
           ),
           body: SafeArea(
             top: false,

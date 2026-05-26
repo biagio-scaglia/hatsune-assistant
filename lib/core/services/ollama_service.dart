@@ -100,4 +100,16 @@ class OllamaService {
       rethrow;
     }
   }
+
+  /// Elimina una conversazione dal backend PostgreSQL.
+  Future<bool> deleteConversation(String id) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/conversations/$id'),
+      ).timeout(const Duration(seconds: 5));
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
 }

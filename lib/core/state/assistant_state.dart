@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:crypto/crypto.dart';
 import '../services/ollama_service.dart';
 import '../../features/models/domain/model_info.dart';
+import '../design_system/app_colors.dart';
+
 
 enum MikuState { idle, thinking, talking, victory }
 
@@ -150,8 +154,46 @@ class AssistantState extends ChangeNotifier {
 
   void setColorTheme(String value) {
     _colorTheme = value;
+    AppColors.currentTheme = value; // Sincronizza il tema sui colori dell'app
     notifyListeners();
   }
+
+  String _getConversationId() {
+    // Trova il primo messaggio inviato dall'utente
+    final userMessages = _messages.where((m) => m['sender'] == 'user').toList();
+    if (userMessages.isEmpty) {
+      return "default_conv";
+    }
+    final firstMessageContent = userMessages[0]['text']!;
+    final bytes = utf8.encode(firstMessageContent);
+    final digest = md5.convert(bytes);
+    return digest.toString();
+  }
+
+  /// Cancella completamente la chat locale e quella sul database remoto PostgreSQL.
+  Future<void> clearChat() async {
+    final conversationId = _getConversationId();
+    
+    // Pulisce lo stato in locale
+    _messages.clear();
+    _messages.add({
+      'sender': 'assistant',
+      'text': 'Ciao! Sono Hatsune Miku, la tua assistente virtuale di programmazione. Come posso aiutarti oggi? 🩵',
+      'time': _getCurrentTime(),
+    });
+    
+    // Invia la richiesta di eliminazione al backend
+    if (conversationId != "default_conv") {
+      try {
+        await _ollamaService.deleteConversation(conversationId);
+      } catch (e) {
+        debugPrint('[MEMORY] Impossibile eliminare la conversazione dal DB: $e');
+      }
+    }
+    
+    notifyListeners();
+  }
+
 
   /// Imposta il modello attivo per la chat.
   void selectModel(ModelInfo model) {
@@ -171,16 +213,30 @@ class AssistantState extends ChangeNotifier {
       // Unisci modelli locali rilevati a quelli cloud predefiniti
       _models = [...localList, ..._cloudModels];
 
-      // Se non c'è nessun modello attivo, imposta il primo locale o cloud disponibile
+      // Se non c'è nessun modello attivo, imposta il primo locale o cloud disponibile, preferendo llama3
       if (_activeModel == null || !_models.any((m) => m.id == _activeModel!.id)) {
-        _activeModel = localList.isNotEmpty ? localList.first : _cloudModels.first;
+        final hasLlama3 = _models.any((m) => m.id.toLowerCase().contains('llama3'));
+        if (hasLlama3) {
+          _activeModel = _models.firstWhere((m) => m.id.toLowerCase().contains('llama3'));
+        } else {
+          _activeModel = localList.isNotEmpty ? localList.first : _cloudModels.first;
+        }
       }
     } catch (e) {
       _isConnected = false;
-      // In caso di errore (Ollama non avviato), mostra solo i modelli Cloud finti per consentire test UI
-      _models = [..._cloudModels];
+      // In caso di errore (Ollama non avviato), mostra i modelli Cloud e aggiunge llama3 locale predefinito per default
+      const defaultLocal = ModelInfo(
+        id: 'llama3:latest',
+        name: 'llama3:latest',
+        provider: 'Ollama (Locale)',
+        type: ModelType.local,
+        status: ModelStatus.downloaded,
+        size: '4.7 GB',
+        description: 'Modello Meta Llama 3 locale predefinito.',
+      );
+      _models = [defaultLocal, ..._cloudModels];
       if (_activeModel == null || !_models.any((m) => m.id == _activeModel!.id)) {
-        _activeModel = _cloudModels.first;
+        _activeModel = defaultLocal;
       }
     } finally {
       _isLoadingModels = false;

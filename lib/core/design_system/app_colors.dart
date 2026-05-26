@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 
 /// Colori di sistema per l'app Hatsune Assistant.
-/// Ispirati alla palette cibernetica di Hatsune Miku: antracite scuro, cyan/teal e rosa neon.
+/// Supporta il cambio tema dinamico tra "Cyan Cyberpunk" e "Neon Pink".
 class AppColors {
   AppColors._();
+
+  static String currentTheme = "Cyan Cyberpunk";
 
   // Colori Principali
   static const Color background = Color(0xFF080B11); // Quasi nero cibernetico
   static const Color surface = Color(0xFF10141D); // Colore card/pannelli principali
   static const Color surfaceElevated = Color(0xFF181D2A); // Colore card secondarie o hover
 
-  // Accenti
-  static const Color primary = Color(0xFF39C5BB); // Cyan Hatsune Miku
-  static const Color primaryLight = Color(0xFF5CE0D8); // Cyan luminoso per hover
-  static const Color secondary = Color(0xFFFF6B9D); // Rosa neon d'accento
+  // Accenti dinamici
+  static Color get primary => currentTheme == "Neon Pink" ? const Color(0xFFFF6B9D) : const Color(0xFF39C5BB);
+  static Color get primaryLight => currentTheme == "Neon Pink" ? const Color(0xFFFF8DAF) : const Color(0xFF5CE0D8);
+  static Color get secondary => currentTheme == "Neon Pink" ? const Color(0xFF39C5BB) : const Color(0xFFFF6B9D);
   static const Color accentBlue = Color(0xFF007BFF); // Blu secondario per link/pulsanti
 
   // Bordi e Divisori
@@ -32,14 +34,14 @@ class AppColors {
   static const Color localModel = Color(0xFF8B5CF6); // Viola per modelli locali Ollama
   static const Color cloudModel = Color(0xFF3B82F6); // Blu per modelli Cloud
 
-  // Gradienti
-  static const LinearGradient primaryGradient = LinearGradient(
-    colors: [primary, Color(0xFF23A198)],
+  // Gradienti dinamici
+  static LinearGradient get primaryGradient => LinearGradient(
+    colors: [primary, currentTheme == "Neon Pink" ? const Color(0xFFC73D6E) : const Color(0xFF23A198)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
-  static const LinearGradient cyberGradient = LinearGradient(
+  static LinearGradient get cyberGradient => LinearGradient(
     colors: [primary, secondary],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,

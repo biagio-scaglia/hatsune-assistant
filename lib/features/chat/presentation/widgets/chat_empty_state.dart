@@ -54,7 +54,7 @@ class ChatEmptyState extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const Center(
+                child: Center(
                   child: Icon(
                     Icons.terminal_rounded,
                     size: 36,
@@ -116,7 +116,7 @@ class ChatEmptyState extends StatelessWidget {
                     onTap: () => onSuggestionSelected(suggestion),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.code_rounded,
                           size: 18,
                           color: AppColors.primary,

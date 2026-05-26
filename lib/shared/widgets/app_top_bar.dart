@@ -8,11 +8,13 @@ import '../../core/responsive/breakpoints.dart';
 class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   final String statusText;
   final bool isOnline;
+  final VoidCallback? onClearChat;
 
   const AppTopBar({
     super.key,
     this.statusText = "Ollama Local: Attivo",
     this.isOnline = true,
+    this.onClearChat,
   });
 
   @override
@@ -73,6 +75,14 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
       actions: [
+        if (onClearChat != null) ...[
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: AppColors.textSecondary),
+            tooltip: 'Cancella cronologia chat',
+            onPressed: onClearChat,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+        ],
         // Indicatore di stato connessione a Ollama/Cloud
         Padding(
           padding: const EdgeInsets.only(right: AppSpacing.md),
