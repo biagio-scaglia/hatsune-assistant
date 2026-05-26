@@ -33,6 +33,9 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final isMobile = Breakpoints.isMobile(context);
+    
+    // Rileva se la tastiera software è aperta
+    final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     // Lista delle schermate principali dell'applicazione
     final List<Widget> screens = [
@@ -46,6 +49,7 @@ class _AppShellState extends State<AppShell> {
       listenable: widget.state,
       builder: (context, _) {
         return Scaffold(
+          resizeToAvoidBottomInset: true, // Consente il ridimensionamento automatico del body con la tastiera
           appBar: AppTopBar(
             statusText: widget.state.isConnected
                 ? "Ollama: Connesso (${widget.state.activeModel?.name ?? 'nessuno'})"
@@ -58,8 +62,8 @@ class _AppShellState extends State<AppShell> {
             child: isMobile
                 ? Column(
                     children: [
-                      // Su Mobile mostra il visualizzatore 3D in alto solo nella schermata Chat o Home
-                      if (_currentIndex == 0 || _currentIndex == 1)
+                      // Su Mobile mostra il visualizzatore 3D solo in Home o Chat, e solo se la tastiera è CHIUSA
+                      if ((_currentIndex == 0 || _currentIndex == 1) && !isKeyboardOpen)
                         SizedBox(
                           height: 240,
                           child: Padding(
@@ -133,7 +137,8 @@ class _AppShellState extends State<AppShell> {
                     ],
                   ),
           ),
-          bottomNavigationBar: isMobile
+          // Nasconde la barra di navigazione mobile se la tastiera è aperta per evitare overlap e recuperare spazio
+          bottomNavigationBar: (isMobile && !isKeyboardOpen)
               ? NavigationBar(
                   selectedIndex: _currentIndex,
                   onDestinationSelected: (idx) => setState(() => _currentIndex = idx),

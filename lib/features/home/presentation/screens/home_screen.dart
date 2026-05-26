@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/design_system/app_colors.dart';
 import '../../../../core/design_system/app_spacing.dart';
-import '../../../../core/responsive/breakpoints.dart';
 import '../../../../core/state/assistant_state.dart';
 import '../../../../shared/widgets/glass_card.dart';
 import '../../../../features/models/domain/model_info.dart';
@@ -18,7 +17,6 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = Breakpoints.isMobile(context);
     final useSingleColumn = MediaQuery.sizeOf(context).width < 1100;
 
     // Conta i modelli suddivisi per tipo
@@ -44,47 +42,87 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
 
-            // Griglia responsive per lo stato del sistema
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: useSingleColumn ? 1 : 2,
-              crossAxisSpacing: AppSpacing.md,
-              mainAxisSpacing: AppSpacing.md,
-              childAspectRatio: useSingleColumn ? 3.2 : 2.2,
-              children: [
-                _StatusMetricCard(
-                  title: 'Modello Attivo',
-                  value: state.activeModel?.name ?? 'Nessun Modello',
-                  subtitle: state.activeModel != null
-                      ? '${state.activeModel!.provider} • Pronto'
-                      : 'Seleziona un modello dalla tab Models',
-                  icon: Icons.auto_awesome,
-                  accentColor: AppColors.primary,
-                ),
-                _StatusMetricCard(
-                  title: 'Connessione Ollama',
-                  value: state.isConnected ? 'ONLINE' : 'OFFLINE',
-                  subtitle: 'Endpoint: ${state.ollamaUrl}',
-                  icon: Icons.lan,
-                  accentColor: state.isConnected ? AppColors.success : AppColors.error,
-                ),
-                _StatusMetricCard(
-                  title: 'Modelli Disponibili',
-                  value: '${state.models.length} Modelli',
-                  subtitle: '$localCount Locali • $cloudCount Cloud Configurati',
-                  icon: Icons.dns,
-                  accentColor: AppColors.localModel,
-                ),
-                _StatusMetricCard(
-                  title: 'Posa Corrente Avatar',
-                  value: state.mikuState.name.toUpperCase(),
-                  subtitle: 'Interazione 3D in tempo reale',
-                  icon: Icons.face,
-                  accentColor: AppColors.secondary,
-                ),
-              ],
-            ),
+            // Disposizione responsive per lo stato del sistema:
+            // Su mobile (single column) usiamo una Column per consentire altezza dinamica ed evitare overflow.
+            // Su tablet/desktop usiamo una griglia a 2 colonne.
+            useSingleColumn
+                ? Column(
+                    children: [
+                      _StatusMetricCard(
+                        title: 'Modello Attivo',
+                        value: state.activeModel?.name ?? 'Nessun Modello',
+                        subtitle: state.activeModel != null
+                            ? '${state.activeModel!.provider} • Pronto'
+                            : 'Seleziona un modello dalla tab Models',
+                        icon: Icons.auto_awesome,
+                        accentColor: AppColors.primary,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      _StatusMetricCard(
+                        title: 'Connessione Ollama',
+                        value: state.isConnected ? 'ONLINE' : 'OFFLINE',
+                        subtitle: 'Endpoint: ${state.ollamaUrl}',
+                        icon: Icons.lan,
+                        accentColor: state.isConnected ? AppColors.success : AppColors.error,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      _StatusMetricCard(
+                        title: 'Modelli Disponibili',
+                        value: '${state.models.length} Modelli',
+                        subtitle: '$localCount Locali • $cloudCount Cloud Configurati',
+                        icon: Icons.dns,
+                        accentColor: AppColors.localModel,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      _StatusMetricCard(
+                        title: 'Posa Corrente Avatar',
+                        value: state.mikuState.name.toUpperCase(),
+                        subtitle: 'Interazione 3D in tempo reale',
+                        icon: Icons.face,
+                        accentColor: AppColors.secondary,
+                      ),
+                    ],
+                  )
+                : GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2,
+                    crossAxisSpacing: AppSpacing.md,
+                    mainAxisSpacing: AppSpacing.md,
+                    childAspectRatio: 2.2,
+                    children: [
+                      _StatusMetricCard(
+                        title: 'Modello Attivo',
+                        value: state.activeModel?.name ?? 'Nessun Modello',
+                        subtitle: state.activeModel != null
+                            ? '${state.activeModel!.provider} • Pronto'
+                            : 'Seleziona un modello dalla tab Models',
+                        icon: Icons.auto_awesome,
+                        accentColor: AppColors.primary,
+                      ),
+                      _StatusMetricCard(
+                        title: 'Connessione Ollama',
+                        value: state.isConnected ? 'ONLINE' : 'OFFLINE',
+                        subtitle: 'Endpoint: ${state.ollamaUrl}',
+                        icon: Icons.lan,
+                        accentColor: state.isConnected ? AppColors.success : AppColors.error,
+                      ),
+                      _StatusMetricCard(
+                        title: 'Modelli Disponibili',
+                        value: '${state.models.length} Modelli',
+                        subtitle: '$localCount Locali • $cloudCount Cloud Configurati',
+                        icon: Icons.dns,
+                        accentColor: AppColors.localModel,
+                      ),
+                      _StatusMetricCard(
+                        title: 'Posa Corrente Avatar',
+                        value: state.mikuState.name.toUpperCase(),
+                        subtitle: 'Interazione 3D in tempo reale',
+                        icon: Icons.face,
+                        accentColor: AppColors.secondary,
+                      ),
+                    ],
+                  ),
             const SizedBox(height: AppSpacing.lg),
 
             Text(

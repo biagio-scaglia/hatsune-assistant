@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/design_system/app_colors.dart';
 import '../../core/design_system/app_spacing.dart';
+import '../../core/responsive/breakpoints.dart';
 
 /// Barra superiore premium e responsive per Hatsune Assistant.
 class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
@@ -16,6 +17,25 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = Breakpoints.isMobile(context);
+
+    // Su mobile, riduciamo il testo dello stato per salvare spazio orizzontale ed evitare overflow
+    String displayStatusText = statusText;
+    if (isMobile) {
+      if (statusText.contains('Ollama: Connesso (')) {
+        // "Ollama: Connesso (llama3)" -> "llama3"
+        final start = statusText.indexOf('(') + 1;
+        final end = statusText.indexOf(')');
+        if (start > 0 && end > start) {
+          displayStatusText = statusText.substring(start, end);
+        } else {
+          displayStatusText = "Connesso";
+        }
+      } else if (statusText == "Ollama: Disconnesso") {
+        displayStatusText = "Offline";
+      }
+    }
+
     return AppBar(
       automaticallyImplyLeading: false,
       title: Row(
@@ -38,10 +58,16 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          Text(
-            'HATSUNE ASSISTANT',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              letterSpacing: 1.0,
+          
+          // Avvolgiamo il titolo in un Expanded per consentire la contrazione su mobile senza overflow
+          Expanded(
+            child: Text(
+              'HATSUNE ASSISTANT',
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                letterSpacing: 1.0,
+              ),
             ),
           ),
         ],
@@ -79,7 +105,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Text(
-                  statusText,
+                  displayStatusText,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
                     fontWeight: FontWeight.w500,
