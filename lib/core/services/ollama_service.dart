@@ -63,4 +63,41 @@ class OllamaService {
       rethrow;
     }
   }
+
+  /// Invia i messaggi al backend con pipeline unificata Chat + TTS.
+  /// Ritorna una mappa con 'text', 'audio_url' e 'tts_active'.
+  Future<Map<String, dynamic>> sendChatWithTTS(
+    String model,
+    List<Map<String, String>> messages, {
+    String? voice,
+    double? speed,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'model': model,
+        'messages': messages,
+      };
+      if (voice != null) body['voice'] = voice;
+      if (speed != null) body['speed'] = speed;
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/chat-with-tts'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(body),
+      ).timeout(const Duration(seconds: 90));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        return {
+          'text': data['message']['content'] as String,
+          'audio_url': data['audio_url'] as String?,
+          'tts_active': data['tts_active'] as bool? ?? false,
+        };
+      } else {
+        throw Exception('Errore risposta backend (${response.statusCode}): ${response.body}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
 }

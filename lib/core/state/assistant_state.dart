@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../services/ollama_service.dart';
 import '../../features/models/domain/model_info.dart';
 
@@ -9,6 +10,8 @@ enum MikuState { idle, thinking, talking, victory }
 /// di Miku ed il collegamento di rete a Ollama.
 class AssistantState extends ChangeNotifier {
   final OllamaService _ollamaService = OllamaService();
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  StreamSubscription<void>? _playerCompleteSub;
   
   MikuState _mikuState = MikuState.idle;
   final List<Map<String, String>> _messages = [
@@ -83,6 +86,12 @@ class AssistantState extends ChangeNotifier {
   ];
 
   AssistantState() {
+    // Registra il listener di completamento audio una sola volta
+    _playerCompleteSub = _audioPlayer.onPlayerComplete.listen((_) {
+      if (_mikuState == MikuState.talking) {
+        setMikuState(MikuState.idle);
+      }
+    });
     refreshModels();
   }
 
@@ -179,12 +188,15 @@ class AssistantState extends ChangeNotifier {
     }
   }
 
-  /// Invia un messaggio all'assistente tramite Ollama
+  /// Invia un messaggio all'assistente tramite Ollama.
+  /// Se la modalità vocale è attiva, usa la pipeline unificata chat-with-tts
+  /// per generare audio e riprodurlo automaticamente.
   Future<void> sendMessage(String text) async {
     if (text.trim().isEmpty) return;
 
-    // Cancella eventuali timer victory attivi
+    // Cancella eventuali timer victory attivi e ferma audio in riproduzione
     _victoryTimer?.cancel();
+    await _audioPlayer.stop();
 
     // Aggiunge messaggio utente
     _messages.add({
@@ -207,7 +219,21 @@ class AssistantState extends ChangeNotifier {
     }).toList();
 
     try {
-      final responseText = await _ollamaService.sendChatMessage(modelName, chatHistory);
+      String responseText;
+      String? audioUrl;
+
+      if (_voiceModeEnabled) {
+        // Pipeline unificata: Chat + TTS in una singola richiesta
+        final result = await _ollamaService.sendChatWithTTS(modelName, chatHistory);
+        responseText = result['text'] as String;
+        final ttsActive = result['tts_active'] as bool? ?? false;
+        if (ttsActive && result['audio_url'] != null) {
+          audioUrl = result['audio_url'] as String;
+        }
+      } else {
+        // Solo chat testuale standard
+        responseText = await _ollamaService.sendChatMessage(modelName, chatHistory);
+      }
 
       _messages.add({
         'sender': 'assistant',
@@ -224,25 +250,43 @@ class AssistantState extends ChangeNotifier {
           lowerText.contains('perfetto') ||
           lowerText.contains('grande')) {
         setMikuState(MikuState.victory);
-        // Ritorna a idle dopo 5 secondi
         _victoryTimer = Timer(const Duration(seconds: 5), () {
           setMikuState(MikuState.idle);
         });
       } else {
         setMikuState(MikuState.talking);
-        // Ritorna a idle dopo 6 secondi di visualizzazione/parlato stimato
-        _victoryTimer = Timer(const Duration(seconds: 6), () {
-          setMikuState(MikuState.idle);
-        });
+
+        // Se c'è audio, riproducilo e torna a idle al termine della riproduzione
+        if (audioUrl != null) {
+          await _playAudio(audioUrl);
+        } else {
+          // Senza audio, torna a idle dopo un tempo stimato
+          _victoryTimer = Timer(const Duration(seconds: 6), () {
+            setMikuState(MikuState.idle);
+          });
+        }
       }
     } catch (e) {
-      // In caso di errore, aggiunge un messaggio dell'assistente per avvisare l'utente
       _messages.add({
         'sender': 'assistant',
         'text': '⚠️ Errore di connessione a Ollama: Assicurati che Ollama sia avviato localmente su $ollamaUrl e che il modello $_activeModel sia installato.\n\nDettagli errore: $e',
         'time': _getCurrentTime(),
       });
       setMikuState(MikuState.idle);
+    }
+  }
+
+  /// Riproduce un file audio WAV dall'URL generato dal backend TTS.
+  /// Miku resta nello stato "talking" fino al termine della riproduzione.
+  Future<void> _playAudio(String url) async {
+    try {
+      await _audioPlayer.play(UrlSource(url));
+    } catch (e) {
+      debugPrint('[Audio] Errore riproduzione audio: $e');
+      // Se la riproduzione fallisce, torna a idle dopo un breve ritardo
+      _victoryTimer = Timer(const Duration(seconds: 4), () {
+        setMikuState(MikuState.idle);
+      });
     }
   }
 
@@ -269,6 +313,8 @@ class AssistantState extends ChangeNotifier {
   @override
   void dispose() {
     _victoryTimer?.cancel();
+    _playerCompleteSub?.cancel();
+    _audioPlayer.dispose();
     super.dispose();
   }
 }

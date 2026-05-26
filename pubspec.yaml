@@ -12,6 +12,7 @@ dependencies:
   model_viewer_plus: ^1.10.0
   google_fonts: ^6.2.1
   http: ^1.2.1
+  audioplayers: ^6.4.0
 
 dev_dependencies:
   flutter_test:
