@@ -1,11 +1,4 @@
-from sqlalchemy.orm import DeclarativeBase
-
-class Base(DeclarativeBase):
-    """
-    Classe base dichiarativa per tutti i modelli ORM di SQLAlchemy 2.0.
-    Consente di centralizzare i metadata per la generazione automatica delle migrazioni via Alembic.
-    """
-    pass
+from .base_class import Base
 
 # Importa tutti i modelli così che siano registrati su Base.metadata
 from .models.conversation import Conversation

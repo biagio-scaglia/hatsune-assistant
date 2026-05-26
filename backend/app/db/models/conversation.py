@@ -3,7 +3,7 @@ from typing import List, Optional
 from sqlalchemy import String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from ..base import Base
+from ..base_class import Base
 
 class Conversation(Base):
     """
