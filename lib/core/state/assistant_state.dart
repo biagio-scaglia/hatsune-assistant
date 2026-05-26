@@ -24,6 +24,15 @@ class AssistantState extends ChangeNotifier {
   bool _isLoadingModels = false;
   Timer? _victoryTimer;
 
+  // Variabili delle impostazioni
+  bool _voiceModeEnabled = false;
+  double _temperature = 0.7;
+  bool _neonGlowEnabled = true;
+  bool _gpuOffloading = true;
+  int _tokenContextLimit = 4096;
+  String _cloudApiKey = "";
+  String _colorTheme = "Cyan Cyberpunk";
+
   // I modelli cloud standard impostati dall'utente
   final List<ModelInfo> _cloudModels = const [
     ModelInfo(
@@ -85,12 +94,54 @@ class AssistantState extends ChangeNotifier {
   bool get isConnected => _isConnected;
   bool get isLoadingModels => _isLoadingModels;
   String get ollamaUrl => _ollamaService.baseUrl;
+  bool get voiceModeEnabled => _voiceModeEnabled;
+  double get temperature => _temperature;
+  bool get neonGlowEnabled => _neonGlowEnabled;
+  bool get gpuOffloading => _gpuOffloading;
+  int get tokenContextLimit => _tokenContextLimit;
+  String get cloudApiKey => _cloudApiKey;
+  String get colorTheme => _colorTheme;
 
   /// Aggiorna l'URL dell'host Ollama e ricarica i modelli locali.
   void setOllamaUrl(String url) {
     _ollamaService.baseUrl = url;
     notifyListeners();
     refreshModels();
+  }
+
+  void setVoiceModeEnabled(bool value) {
+    _voiceModeEnabled = value;
+    notifyListeners();
+  }
+
+  void setTemperature(double value) {
+    _temperature = value;
+    notifyListeners();
+  }
+
+  void setNeonGlowEnabled(bool value) {
+    _neonGlowEnabled = value;
+    notifyListeners();
+  }
+
+  void setGpuOffloading(bool value) {
+    _gpuOffloading = value;
+    notifyListeners();
+  }
+
+  void setTokenContextLimit(int value) {
+    _tokenContextLimit = value;
+    notifyListeners();
+  }
+
+  void setCloudApiKey(String value) {
+    _cloudApiKey = value;
+    notifyListeners();
+  }
+
+  void setColorTheme(String value) {
+    _colorTheme = value;
+    notifyListeners();
   }
 
   /// Imposta il modello attivo per la chat.

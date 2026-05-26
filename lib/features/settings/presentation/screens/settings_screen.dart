@@ -18,16 +18,27 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _hostController;
+  late TextEditingController _apiKeyController;
 
   @override
   void initState() {
     super.initState();
     _hostController = TextEditingController(text: widget.state.ollamaUrl);
+    _apiKeyController = TextEditingController(text: widget.state.cloudApiKey);
+    widget.state.addListener(_onStateChanged);
+  }
+
+  void _onStateChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
   void dispose() {
+    widget.state.removeListener(_onStateChanged);
     _hostController.dispose();
+    _apiKeyController.dispose();
     super.dispose();
   }
 
@@ -42,6 +53,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
     }
+  }
+
+  void _saveApiKey() {
+    final key = _apiKeyController.text.trim();
+    widget.state.setCloudApiKey(key);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Chiave API Cloud salvata con successo'),
+        backgroundColor: AppColors.primary,
+      ),
+    );
   }
 
   @override
@@ -116,64 +138,132 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                 ),
-                const _SettingsTile(
-                  title: 'Chiavi API Cloud',
-                  subtitle: 'Configura OpenAI o Anthropic keys (Predisposto)',
-                  trailing: Icon(Icons.vpn_key_outlined, size: 18, color: AppColors.textSecondary),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Chiavi API Cloud', style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Configura OpenAI o Anthropic keys (Predisposto)', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 36,
+                              child: TextFormField(
+                                controller: _apiKeyController,
+                                obscureText: true,
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: AppColors.surfaceElevated,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 0),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: AppRadius.borderRadiusSm,
+                                    borderSide: const BorderSide(color: AppColors.border),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: AppRadius.borderRadiusSm,
+                                    borderSide: const BorderSide(color: AppColors.primary),
+                                  ),
+                                ),
+                                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: AppColors.background,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: AppRadius.borderRadiusSm,
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                            onPressed: _saveApiKey,
+                            child: const Text('Salva', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
 
             // Sezione Appearance
-            const _SettingsSection(
+            _SettingsSection(
               title: 'Aspetto & Personalizzazione',
               children: [
                 _SettingsTileSwitch(
                   title: 'Abilita Neon Glow Borders',
                   subtitle: 'Aggiunge un leggero bagliore neon attorno alle card',
-                  value: true,
+                  value: widget.state.neonGlowEnabled,
+                  onChanged: (val) => widget.state.setNeonGlowEnabled(val),
                 ),
-                _SettingsTile(
-                  title: 'Tema Colori',
-                  subtitle: 'Cyan Cyberpunk (Hatsune Miku standard)',
-                  trailing: Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textMuted),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Tema Colori', style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                  subtitle: Text(widget.state.colorTheme, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textMuted),
+                  onTap: () {
+                    final nextTheme = widget.state.colorTheme == "Cyan Cyberpunk"
+                        ? "Pink Cyberpunk"
+                        : "Cyan Cyberpunk";
+                    widget.state.setColorTheme(nextTheme);
+                  },
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
 
             // Sezione Assistant Behavior
-            const _SettingsSection(
+            _SettingsSection(
               title: 'Comportamento Assistente',
               children: [
                 _SettingsTileSwitch(
                   title: 'Modalità Vocale Abilitata',
                   subtitle: 'Miku risponde anche utilizzando il Text To Speech (Predisposto)',
-                  value: false,
+                  value: widget.state.voiceModeEnabled,
+                  onChanged: (val) => widget.state.setVoiceModeEnabled(val),
                 ),
                 _SettingsTileSlider(
                   title: 'Temperatura Creatività',
                   subtitle: 'Valori alti producono risposte più fantasiose',
-                  value: 0.7,
+                  value: widget.state.temperature,
+                  onChanged: (val) => widget.state.setTemperature(val),
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
 
             // Sezione Performance
-            const _SettingsSection(
+            _SettingsSection(
               title: 'Prestazioni & Risorse',
               children: [
-                _SettingsTile(
-                  title: 'Limite Contesto Token',
-                  subtitle: 'Impostato a 4096 token per risparmiare VRAM',
-                  trailing: Text('4096', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Limite Contesto Token', style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Impostato per risparmiare VRAM del server', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  trailing: Text(
+                    widget.state.tokenContextLimit.toString(),
+                    style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                  ),
+                  onTap: () {
+                    final nextLimit = widget.state.tokenContextLimit == 4096
+                        ? 8192
+                        : (widget.state.tokenContextLimit == 8192 ? 2048 : 4096);
+                    widget.state.setTokenContextLimit(nextLimit);
+                  },
                 ),
                 _SettingsTileSwitch(
                   title: 'GPU Offloading locale',
                   subtitle: 'Utilizza l\'accelerazione grafica locale se disponibile',
-                  value: true,
+                  value: widget.state.gpuOffloading,
+                  onChanged: (val) => widget.state.setGpuOffloading(val),
                 ),
               ],
             ),
@@ -254,37 +344,17 @@ class _SettingsSection extends StatelessWidget {
   }
 }
 
-class _SettingsTile extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final Widget? trailing;
-
-  const _SettingsTile({
-    required this.title,
-    required this.subtitle,
-    this.trailing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-      trailing: trailing,
-    );
-  }
-}
-
 class _SettingsTileSwitch extends StatelessWidget {
   final String title;
   final String subtitle;
   final bool value;
+  final ValueChanged<bool>? onChanged;
 
   const _SettingsTileSwitch({
     required this.title,
     required this.subtitle,
     required this.value,
+    this.onChanged,
   });
 
   @override
@@ -294,7 +364,7 @@ class _SettingsTileSwitch extends StatelessWidget {
       title: Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
       subtitle: Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
       value: value,
-      onChanged: (_) {},
+      onChanged: onChanged,
       activeThumbColor: AppColors.primary,
     );
   }
@@ -304,11 +374,13 @@ class _SettingsTileSlider extends StatelessWidget {
   final String title;
   final String subtitle;
   final double value;
+  final ValueChanged<double>? onChanged;
 
   const _SettingsTileSlider({
     required this.title,
     required this.subtitle,
     required this.value,
+    this.onChanged,
   });
 
   @override
@@ -332,12 +404,15 @@ class _SettingsTileSlider extends StatelessWidget {
                   ),
                   child: Slider(
                     value: value,
-                    onChanged: (_) {},
+                    min: 0.0,
+                    max: 1.0,
+                    divisions: 10,
+                    onChanged: onChanged,
                   ),
                 ),
               ),
               Text(
-                value.toString(),
+                value.toStringAsFixed(1),
                 style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 12),
               ),
             ],

@@ -75,16 +75,6 @@ class _ChatInputBarState extends State<ChatInputBar> {
         backgroundColor: AppColors.surface.withValues(alpha: 0.9),
         child: Row(
           children: [
-            // Tasto allegati (attualmente disattivato)
-            IconButton(
-              icon: const Icon(Icons.add_rounded, color: AppColors.textSecondary),
-              onPressed: widget.isThinking ? null : () {},
-            ),
-            // Tasto input vocale (attualmente disattivato)
-            IconButton(
-              icon: const Icon(Icons.mic_none_rounded, color: AppColors.textSecondary),
-              onPressed: widget.isThinking ? null : () {},
-            ),
             // Campo di testo per l'input utente
             Expanded(
               child: TextField(
