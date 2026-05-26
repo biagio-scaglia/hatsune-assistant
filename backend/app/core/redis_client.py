@@ -13,24 +13,33 @@ class RedisClient:
     """
     def __init__(self):
         self._client: Optional[redis.Redis] = None
+        self._last_attempt: float = 0.0
+        self._retry_interval: float = 30.0 # Riprova al massimo ogni 30 secondi
 
     @property
     def client(self) -> Optional[redis.Redis]:
+        import time
         if self._client is None:
+            now = time.time()
+            if now - self._last_attempt < self._retry_interval:
+                return None
+            self._last_attempt = now
             try:
                 # Connessione con decode_responses=True per leggere stringhe Python direttamente
-                self._client = redis.Redis.from_url(
+                client = redis.Redis.from_url(
                     settings.REDIS_URL, 
                     decode_responses=True,
                     socket_connect_timeout=2.0, # Timeout rapido per evitare blocchi
                     socket_timeout=2.0
                 )
-                self._client.ping()
+                client.ping()
+                self._client = client
                 logger.info("Connessione a Redis stabilita con successo.")
             except Exception as e:
                 logger.warning(f"[REDIS] Impossibile connettersi a Redis ({e}). Bypass della cache/lock abilitato.")
                 self._client = None
         return self._client
+
 
     def is_active(self) -> bool:
         """Verifica se Redis è attualmente attivo ed accessibile."""

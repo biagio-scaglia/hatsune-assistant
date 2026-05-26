@@ -55,13 +55,26 @@ async def chat(
     
     # Salva la risposta dell'assistente nel database
     if assistant_content.strip():
-        await ConversationRepository.add_message(
-            db=db,
-            conversation_id=conversation_id,
-            role="assistant",
-            content=assistant_content,
-            provider="Ollama (Locale)"
-        )
+        db_saved = False
+        if not conversation_memory_service.db_offline:
+            try:
+                await ConversationRepository.add_message(
+                    db=db,
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=assistant_content,
+                    provider="Ollama (Locale)"
+                )
+                db_saved = True
+            except Exception as e:
+                logger.warning(f"[DATABASE] Impossibile salvare il messaggio sincrono su Postgres ({e}).")
+        
+        if not db_saved:
+            conversation_memory_service.add_local_message(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=assistant_content
+            )
     
     logger.info(f"[{request_id}] Risposta chat salvata su DB e restituita.")
     
@@ -122,17 +135,30 @@ async def chat_stream(
                     
                     if data_json.get("done", False):
                         if accumulated_content.strip():
-                            # Eseguiamo il salvataggio in una sessione DB fresca per evitare
-                            # la chiusura prematura del thread-bound session
-                            async with async_session_maker() as session:
-                                await ConversationRepository.add_message(
-                                    session,
+                            db_saved = False
+                            if not conversation_memory_service.db_offline:
+                                try:
+                                    # Eseguiamo il salvataggio in una sessione DB fresca per evitare
+                                    # la chiusura prematura del thread-bound session
+                                    async with async_session_maker() as session:
+                                        await ConversationRepository.add_message(
+                                            session,
+                                            conversation_id=conversation_id,
+                                            role="assistant",
+                                            content=accumulated_content,
+                                            provider="Ollama (Locale)"
+                                        )
+                                    db_saved = True
+                                    logger.info(f"[CHAT STREAM] Risposta accumulata ({len(accumulated_content)} crt) salvata su DB.")
+                                except Exception as e:
+                                    logger.warning(f"[DATABASE] Impossibile salvare la risposta dello stream su Postgres ({e}).")
+                            
+                            if not db_saved:
+                                conversation_memory_service.add_local_message(
                                     conversation_id=conversation_id,
                                     role="assistant",
-                                    content=accumulated_content,
-                                    provider="Ollama (Locale)"
+                                    content=accumulated_content
                                 )
-                            logger.info(f"[CHAT STREAM] Risposta accumulata ({len(accumulated_content)} crt) salvata su DB.")
                 except Exception as e:
                     logger.error(f"[CHAT STREAM] Errore accumulo risposta streaming: {e}")
 

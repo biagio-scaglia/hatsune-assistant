@@ -136,13 +136,26 @@ async def chat_with_tts(
     
     # Salva la risposta dell'assistente in PostgreSQL
     if assistant_content.strip():
-        await ConversationRepository.add_message(
-            db=db,
-            conversation_id=conversation_id,
-            role="assistant",
-            content=assistant_content,
-            provider="Ollama (Locale)"
-        )
+        db_saved = False
+        if not conversation_memory_service.db_offline:
+            try:
+                await ConversationRepository.add_message(
+                    db=db,
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=assistant_content,
+                    provider="Ollama (Locale)"
+                )
+                db_saved = True
+            except Exception as e:
+                logger.warning(f"[DATABASE] Impossibile salvare il messaggio in chat-with-tts su Postgres ({e}).")
+        
+        if not db_saved:
+            conversation_memory_service.add_local_message(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=assistant_content
+            )
     
     # 2. Genera l'audio partendo dalla risposta testuale di Ollama (sfruttando il caching audio)
     audio_url = None
