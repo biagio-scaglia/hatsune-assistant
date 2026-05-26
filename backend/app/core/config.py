@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     REDIS_MODELS_TTL_SECONDS: int = 300
     CONVERSATION_MEMORY_MAX_MESSAGES: int = 8
 
+    # Impostazioni Database PostgreSQL
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/hatsune_assistant"
+
 
     # Impostazioni di Hardening & Timeout
     REQUEST_TIMEOUT_SECONDS: float = 60.0

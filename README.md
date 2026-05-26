@@ -1,6 +1,6 @@
 # Hatsune Assistant
 
-Un assistente alla programmazione interattivo sviluppato in Flutter, con Hatsune Miku come presenza 3D animata collegata a un backend asincrono in Python (FastAPI) connesso a modelli LLM Ollama locali/Cloud, con cache Redis, code Celery e sintesi vocale locale Piper TTS.
+Un assistente alla programmazione interattivo sviluppato in Flutter, con Hatsune Miku come presenza 3D animata collegata a un backend asincrono in Python (FastAPI) connesso a modelli LLM Ollama locali/Cloud, con persistenza dati PostgreSQL, cache Redis, code asincrone Celery e sintesi vocale locale Piper TTS.
 
 Realizzato da biagigio.
 
@@ -8,9 +8,14 @@ Realizzato da biagigio.
 
 ## Panoramica del Progetto
 
-Hatsune Assistant unisce l'estetica cyberpunk di Hatsune Miku con una interfaccia utente scura, moderna ed estremamente responsive progettata per sviluppatori. L'applicazione si appoggia a un backend asincrono in Python che fa da ponte verso un'istanza locale di Ollama ed è in grado di inviare prompt, gestire lo streaming delle risposte, configurare i parametri e caricare i modelli installati. 
+Hatsune Assistant unisce l'estetica cyberpunk di Hatsune Miku con una interfaccia utente scura, moderna ed estremamente responsive progettata per sviluppatori. L'applicazione si appoggia a un backend asincrono in Python che fa da ponte verso un'istanza locale di Ollama ed è in grado di inviare prompt, gestire lo storico persistente, lo streaming delle risposte, configurare i parametri e caricare i modelli installati. 
 
-Il backend integra la sintesi vocale locale ad alte prestazioni tramite Piper TTS, consentendo all'avatar 3D di Miku di parlare ed animarsi in tempo reale coordinandosi all'output audio generato. Per ottimizzare le latenze e la gestione del contesto, il sistema utilizza Redis come livello di caching (sia per i dati di stato che per i file audio generati) e Celery per i processi asincroni pesanti (sintesi vocale ed elaborazione della memoria a lungo termine).
+Il backend integra la sintesi vocale locale ad alte prestazioni tramite Piper TTS, consentendo all'avatar 3D di Miku di parlare ed animarsi in tempo reale coordinandosi all'output audio generato. Per ottimizzare le latenze, garantire una persistenza reale ed una gestione intelligente del contesto, il sistema utilizza:
+- **PostgreSQL** come database relazionale principale per salvare conversazioni, messaggi, summary e argomenti.
+- **SQLAlchemy 2.x** in modalità asincrona tramite driver **asyncpg** per un'interazione non bloccante con il database.
+- **Alembic** per la gestione evolutiva e controllata dello schema tramite migrazioni.
+- **Redis** come livello di caching veloce (per dati di stato, risposte rapide e cache dei file audio WAV generati) e come broker di messaggi per Celery.
+- **Celery** e **Celery Beat** per l'esecuzione in background di compiti periodici e pesanti (sintesi vocale ed aggiornamento asincrono dei summary).
 
 ### Stati e Pose della Miku 3D
 L'avatar 3D cambia posa a seconda dello stato di elaborazione dell'assistente:
@@ -23,32 +28,34 @@ L'avatar 3D cambia posa a seconda dello stato di elaborazione dell'assistente:
 
 ## Funzionalita Principali
 
-### Architettura Client-Server
-- **FastAPI Python Backend**: Il frontend Flutter comunica con un backend in Python asincrono che funge da bridge sicuro verso Ollama, ottimizzando le performance ed offrendo una base estendibile per provider multipli.
+### Architettura Client-Server e Persistenza
+- **FastAPI Python Backend**: Il frontend Flutter comunica con un backend in Python asincrono che funge da bridge sicuro verso Ollama e PostgreSQL.
+- **PostgreSQL Database**:
+  - Salva in modo strutturato e duraturo le conversazioni, lo storico di tutti i messaggi con data e dettagli tecnici (es. latenza e provider), i summary e i topic delle discussioni.
+  - Utilizza un layer repository dedicato (`app/db/repositories/`) per separare la logica delle query SQL dal livello delle API e dei servizi.
 - **Caching Centralizzato su Redis**:
-  - Cache con TTL breve (10 secondi) per l'endpoint di health `/api/v1/health` per evitare carichi eccessivi.
-  - Cache con TTL medio (5 minuti) per l'endpoint `/api/v1/models` per velocizzare il caricamento della lista dei modelli installati.
-  - **TTS Audio Cache**: Caching dei file audio WAV generati basato sull'hash MD5 del testo, della voce e della velocità. Se la stessa frase viene richiesta, viene restituito immediatamente l'URL del file esistente bypassando Piper TTS (latenza inferiore a 1ms).
-  - **Degrado Controllato**: Se il server Redis è temporaneamente disconnesso, il backend devia automaticamente le chiamate bypassando la cache, garantendo la continuità del servizio.
+  - Cache con TTL breve (10 secondi) per l'endpoint di health `/api/v1/health` e TTL medio (5 minuti) per l'endpoint `/api/v1/models`.
+  - **TTS Audio Cache**: Caching dei file audio WAV generati basato sull'hash MD5 di testo, voce e velocità. Se la stessa frase viene richiesta, viene restituito l'URL dell'audio esistente bypassando Piper TTS (latenza inferiore a 1ms).
+  - **Bypass e Fallback**: In caso di arresto temporaneo del server Redis, il backend continua a funzionare leggendo direttamente da PostgreSQL ed Ollama.
 - **Task Asincroni e Programmati con Celery**:
-  - **Beat (Scheduler)**: Gestisce i job periodici, tra cui la pulizia dei file audio temporanei (ogni notte alle 02:00) e il refresh automatico dei modelli in cache ogni 5 minuti.
-  - **Worker**: Esegue l'elaborazione dei compiti pesanti fuori dal ciclo di richiesta-risposta HTTP (sintesi vocale complessa, compilazione della memoria storica della conversazione).
+  - **Beat (Scheduler)**: Gestisce i job periodici, tra cui la pulizia dei file audio temporanei (ogni notte alle 02:00) tramite lock distribuiti e la manutenzione ordinaria della cache.
+  - **Worker**: Esegue l'elaborazione pesante in background (sintesi vocale Piper, generazione del summary storico ed estrazione topic tramite Ollama).
 - **Memoria Conversazionale Ottimizzata**:
-  - **Sliding Window**: Invia ad Ollama solo gli ultimi messaggi recenti (configurati via `CONVERSATION_MEMORY_MAX_MESSAGES`).
-  - **Sintesi Storica Asincrona**: Quando la cronologia supera la finestra recente, un task Celery in background riassume i messaggi storici passati ed estrae gli argomenti principali discussi, salvandoli in Redis.
-  - Nelle richieste successive, il riassunto e i tag storici vengono inseriti come messaggio di sistema (`system message`), riducendo la dimensione dei prompt e prevenendo rallentamenti dovuti a finestre di contesto sature.
+  - **Sliding Window**: Invia ad Ollama solo gli ultimi messaggi recenti (configurabili tramite `CONVERSATION_MEMORY_MAX_MESSAGES`).
+  - **Sintesi Storica Asincrona**: Quando la cronologia supera la finestra recente, un task Celery in background riassume i messaggi precedenti ed estrae gli argomenti principali discussi, salvandoli in modo permanente su PostgreSQL e caricandoli in cache Redis.
+  - Il riassunto viene iniettato come messaggio di sistema (`system message`) per non saturare la finestra di contesto di Ollama con messaggi vecchi, abbattendo la latenza del modello.
 - **Diagnostica e Monitoraggio (`/api/v1/health/diagnostics`)**:
-  - Endpoint amministrativo che espone in tempo reale lo stato di Redis (connessione, numero e elenco delle chiavi memorizzate) e di Celery (stato dei worker attivi).
+  - Endpoint amministrativo per monitorare in tempo reale lo stato di Redis (connessione, numero e chiavi attive) e di Celery (stato dei worker).
 
 ### Integrazione Vocale Piper Standalone
 - **Zero installazioni pesanti**: Viene scaricato in background l'eseguibile precompilato ufficiale `piper.exe` per Windows e i modelli ONNX di default al primo avvio.
 - **Gestione Voci e Lingue**: Supporta voci italiane femminili di default (`it_IT-paola-medium`), maschili (`it_IT-riccardo-x_low`) ed inglesi (`en_US-lessac-medium`), scaricate automaticamente su richiesta.
-- **Fallback Acustico**: Se il download dei modelli è ancora in corso, riproduce un bip sinusoidale cyber per testare la sincronizzazione dell'interfaccia.
+- **Fallback Acustico**: Se il download dei modelli è ancora in corso, riproduce un bip sinusoidale cyber.
 
 ### Layout Responsive Premium
 - **Desktop/Tablet**: Split-screen con barra di navigazione laterale (`NavigationRail`) e visualizzatore Miku 3D persistente sulla destra.
-- **Mobile**: Navigazione inferiore (`NavigationBar`) e visualizzatore Miku 3D posizionato in alto, che si nasconde intelligentemente per lasciare il 100% dello spazio ai messaggi quando la tastiera virtuale è aperta.
-- **Design System Cyberpunk**: Colori antracite, cyan Miku `#39C5BB` e rosa neon `#FF6B9D`, arricchiti da pannelli con effetto Glassmorphism e glow attivi sul focus dei campi.
+- **Mobile**: Navigazione inferiore (`NavigationBar`) e visualizzatore Miku 3D posizionato in alto, che si nasconde per lasciare spazio ai messaggi quando la tastiera virtuale è aperta.
+- **Design System Cyberpunk**: Colori antracite, cyan Miku `#39C5BB` e rosa neon `#FF6B9D`, con effetti Glassmorphism e glow.
 
 ---
 
@@ -72,26 +79,28 @@ I file 3D dell'assistente sono inclusi localmente nel progetto. Puoi visualizzar
   - `model_viewer_plus`: rendering 3D interattivo dei file GLB.
   - `http`: per le chiamate API REST verso il backend FastAPI.
   - `audioplayers`: per la riproduzione dei file audio WAV generati dal backend.
-  - `google_fonts`: per i font Rajdhani (titoli futuristici) e Inter (corpo del testo).
+  - `google_fonts`: per i font Rajdhani e Inter.
 
 ### Backend (Python)
 - **Linguaggio**: Python 3.11+
 - **Framework**: FastAPI & Uvicorn (server asincrono)
+- **Database & ORM**: PostgreSQL, SQLAlchemy 2.x (async), Alembic (migrazioni)
 - **Gestore Coda e Cache**: Redis & Celery (con Celery Beat per compiti periodici)
 - **Dipendenze Chiave**:
-  - `httpx`: per le chiamate asincrone non-blocking a Ollama.
+  - `httpx`: per le chiamate asincrone a Ollama.
+  - `asyncpg`: driver asincrono per PostgreSQL.
   - `redis`: client Python per l'interazione con Redis.
   - `celery`: per la gestione della coda dei task asincroni.
   - `pydantic` e `pydantic-settings`: per la validazione dei modelli di dati e delle variabili d'ambiente.
   - `slowapi`: per rate limiting delle chiamate API.
-  - **Piper C++ Standalone (`piper.exe`)**: motore TTS locale integrato in modo portabile e senza dipendenze Python pesanti.
+  - **Piper C++ Standalone (`piper.exe`)**: motore TTS locale integrato in modo portabile.
 
 ---
 
 ## Installazione ed Esecuzione
 
 ### Esecuzione Completa tramite Docker Compose (Raccomandato)
-Se hai installato Docker, puoi avviare l'intero stack del backend (inclusi Redis, Celery, e Flower per il monitoraggio dei task) con un singolo comando:
+Se hai installato Docker, puoi avviare l'intero stack del backend (inclusi PostgreSQL, Redis, Celery, e Flower per il monitoraggio dei task) con un singolo comando:
 ```bash
 cd backend
 docker-compose up --build
@@ -101,20 +110,30 @@ Una volta avviato, i servizi saranno disponibili ai seguenti indirizzi:
 - Documentazione API Swagger: `http://localhost:8000/docs`
 - Monitoraggio Task Celery (Flower): `http://localhost:5555`
 
+Il container di FastAPI eseguirà automaticamente l'upgrade del database tramite Alembic all'avvio.
+
 ---
 
 ### Esecuzione Manuale (Componenti Singoli)
 
 #### 1. Avvia Ollama in locale
-Assicurati che Ollama sia in esecuzione sulla porta standard `11434` e che sia presente almeno un modello (es. `llama3`):
+Assicurati che Ollama sia in esecuzione sulla porta standard `11434` e che sia presente il modello predefinito:
 ```bash
 ollama run llama3
 ```
 
-#### 2. Avviare Redis
-Redis deve essere attivo in locale sulla porta predefinita `6379`.
-- Windows (tramite WSL): `sudo service redis-server start`
-- macOS: `brew services start redis`
+#### 2. Avviare i database locali
+PostgreSQL deve essere attivo sulla porta `5432` con un database denominato `hatsune_assistant`. Redis deve essere attivo sulla porta `6379`.
+- Windows (Postgres e Redis via WSL):
+  ```bash
+  sudo service postgresql start
+  sudo service redis-server start
+  ```
+- macOS:
+  ```bash
+  brew services start postgresql
+  brew services start redis
+  ```
 
 #### 3. Configurare ed Avviare il Backend Python
 Entra nella cartella `backend` e configura l'ambiente virtuale:
@@ -130,6 +149,11 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
+Esegui le migrazioni di Alembic per preparare lo schema delle tabelle nel database PostgreSQL:
+```bash
+alembic upgrade head
+```
+
 Avvia i tre componenti del backend in terminali separati (assicurandoti che l'ambiente virtuale sia attivo in ciascuno):
 
 **Server API FastAPI**:
@@ -141,7 +165,7 @@ uvicorn app.main:app --reload
 ```bash
 celery -A app.celery_app worker --loglevel=info
 ```
-*(Nota per Windows: se riscontri problemi di concorrenza, puoi avviare il worker in modalità pool singola: `celery -A app.celery_app worker --loglevel=info -P solo`)*
+*(Nota per Windows: se riscontri problemi di concorrenza, aggiungi l'opzione `-P solo`)*
 
 **Celery Beat (Pianificatore)**:
 ```bash
@@ -166,19 +190,27 @@ flutter run
 ## Struttura delle Cartelle del Progetto
 
 ```text
-├── backend/                       # Backend FastAPI, Redis e Celery (Python)
+├── backend/                       # Backend FastAPI, Postgres, Redis e Celery (Python)
+│   ├── alembic/                   # Directory di gestione delle migrazioni asincrone
+│   │   ├── versions/              # Script di migrazione generati
+│   │   └── env.py                 # Configurazione dell'ambiente di migrazione
 │   ├── app/
-│   │   ├── api/                   # Router e endpoint (/chat, /models, /health, /tts)
-│   │   ├── core/                  # Config, logger, eccezioni e client Redis
+│   │   ├── api/                   # Router e endpoint (/chat, /conversations, /models, /health, /tts)
+│   │   ├── core/                  # Config, database core, client Redis ed eccezioni
+│   │   ├── db/
+│   │   │   ├── base.py            # Classe Base dichiarativa di SQLAlchemy
+│   │   │   ├── models/            # Modelli ORM (conversation, message, summary, topic, setting)
+│   │   │   └── repositories/      # Layer repository per l'interazione persistente Postgres
 │   │   ├── schemas/               # Schemi Pydantic per validazione dati
 │   │   ├── services/              # Servizio Ollama, TTSService, cache e memoria
 │   │   ├── tasks/                 # Task Celery asincroni e periodici
 │   │   ├── celery_app.py          # Configurazione dell'applicazione Celery e scheduler
 │   │   └── main.py                # Entrypoint principale di FastAPI
 │   ├── bin/piper/                 # Binario piper.exe e modelli ONNX (auto-scaricati)
+│   ├── alembic.ini                # File di configurazione CLI di Alembic
 │   ├── Dockerfile                 # Dockerfile per il build del container backend/worker
-│   ├── docker-compose.yml         # Composizione per avvio di Redis, FastAPI, Celery e Flower
-│   ├── requirements.txt           # Dipendenze Python (FastAPI, Redis, Celery, slowapi)
+│   ├── docker-compose.yml         # Composizione per avvio di Postgres, Redis, FastAPI, Celery e Flower
+│   ├── requirements.txt           # Dipendenze Python (FastAPI, SQLAlchemy, asyncpg, Alembic, Redis, Celery)
 │   └── README.md                  # Documentazione specifica del backend
 │
 ├── lib/                           # Frontend (Flutter)

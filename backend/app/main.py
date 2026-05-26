@@ -51,6 +51,7 @@ app.include_router(routes_health.router, prefix="/api/v1", tags=["Health"])
 app.include_router(routes_models.router, prefix="/api/v1", tags=["Models"])
 app.include_router(routes_chat.router, prefix="/api/v1", tags=["Chat"])
 app.include_router(routes_tts.router, prefix="/api/v1", tags=["TTS"])
+app.include_router(routes_conversations.router, prefix="/api/v1", tags=["Conversations"])
 
 @app.get("/")
 async def root():

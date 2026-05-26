@@ -1,152 +1,170 @@
 # Hatsune Assistant AI Backend
 
-Questo è il backend di servizio in Python (FastAPI) per **Hatsune Assistant**. Funge da bridge (ponte) sicuro, scalabile e ad alte prestazioni tra l'applicazione client in Flutter e le API locali/remote di Ollama, integrando la sintesi vocale locale **Piper TTS** ed ottimizzando l'intera elaborazione tramite **Redis** e **Celery**.
+Questo è il backend di servizio in Python (FastAPI) per Hatsune Assistant. Funge da bridge (ponte) sicuro, scalabile e ad alte prestazioni tra l'applicazione client in Flutter e le API locali/remote di Ollama, integrando la sintesi vocale locale Piper TTS ed ottimizzando l'elaborazione tramite PostgreSQL, Redis e Celery.
 
 ---
 
-## 🚀 Nuove Funzionalità di Ottimizzazione e Scalabilità
+## Architettura di Ottimizzazione e Persistenza Dati
 
-Il backend è stato potenziato con un'architettura asincrona avanzata basata su Redis e Celery:
+Il backend adotta un'architettura a tre livelli per garantire persistenza reale, reattività e bassa latenza:
 
-1. **Redis Caching Centralizzato**:
-   - Cache con TTL breve (10s) per `/health` per ridurre chiamate ridondanti a Ollama.
-   - Cache con TTL medio (5 min) per `/models` per velocizzare il caricamento della lista modelli.
-   - **TTS Audio Caching**: Caching dei file audio WAV generati basato sull'hash MD5 di `testo + voce + velocità`. Se la stessa frase viene richiesta, viene servita istantaneamente in meno di 1ms bypassed Piper!
-   - Gestione del degrado controllato (*graceful degradation*): se Redis è offline, il backend bypassa la cache e continua a funzionare regolarmente.
+1. **PostgreSQL (Persistenza dei Dati)**:
+   - Utilizzato come fonte di verità principale (Single Source of Truth).
+   - Memorizza le conversazioni, lo storico completo di tutti i messaggi (comprensivo di latenze dei modelli e provider), i summary generati asincronamente e gli argomenti estratti.
+   - Gestito tramite SQLAlchemy 2.x in modalità asincrona con driver asyncpg per garantire massime prestazioni su operazioni I/O.
+   - Migrazioni dello schema gestite tramite Alembic in modalità asincrona.
 
-2. **Task Asincroni con Celery & Beat**:
-   - **Beat (Task Periodici)**:
-     - Rimozione programmata dei file WAV temporanei (ogni notte alle 02:00) tramite lock distribuito su Redis.
-     - Refresh automatico dei modelli in cache ogni 5 minuti per mantenere i dati pronti in memoria.
-     - Manutenzione e cleanup periodico della cache una volta all'ora.
-   - **Task in Background**:
-     - Sintesi vocale asincrona pesante.
-     - Generazione asincrona del riassunto e dei topic della conversazione.
+2. **Redis (Caching & Broker Celery)**:
+   - Funge da broker di messaggi per Celery ed backend dei risultati.
+   - Fornisce un livello di caching rapido per risposte di health (TTL 10s), lista modelli (TTL 5m), e per i summary/topic delle conversazioni attive.
+   - Caching audio TTS basato su hash MD5 di testo, voce e velocità: se la stessa frase viene richiesta, l'URL del file WAV esistente viene servito in meno di 1ms bypassando la generazione C++ di Piper.
+   - Gestione del degrado controllato (graceful degradation): se Redis è offline, il sistema bypassa la cache e interroga direttamente il database o Ollama senza interrompere il servizio.
 
-3. **Memoria Conversazionale Ottimizzata**:
-   - **Finestra Scorrevole**: Invia a Ollama solo gli ultimi $N$ messaggi recenti (configurabile via `CONVERSATION_MEMORY_MAX_MESSAGES`).
-   - **Riassunto & Topic in Background**: Quando la chat supera la soglia, i messaggi storici vengono analizzati asincronamente in Celery per generare un riassunto compatto e 3 topic chiave, salvati in Redis.
-   - Nelle richieste successive, il riassunto storico viene allegato come contesto di sistema (`system message`), evitando di saturare la finestra di contesto di Ollama con messaggi vecchi, riducendo drasticamente la latenza.
+3. **Celery & Celery Beat (Asincronia e Job Periodici)**:
+   - **Beat**: Gestisce i compiti ricorrenti, tra cui la pulizia dei file temporanei su disco ad una data ora (02:00) tramite lock distribuiti e la manutenzione della cache.
+   - **Worker**: Esegue l'elaborazione pesante in background (sintesi vocale e calcolo asincrono di riassunti e topics tramite Ollama) leggendo e scrivendo direttamente su PostgreSQL.
 
-4. **Diagnostica Amministrativa (`/api/v1/health/diagnostics`)**:
-   - Endpoint per monitorare in tempo reale lo stato di Redis (connessione, numero e nomi delle chiavi in cache) e Celery (stato dei worker attivi).
+4. **Memoria Conversazionale Ottimizzata**:
+   - Invia ad Ollama solo una finestra scorrevole degli ultimi N messaggi recenti (configurato a 8 di default).
+   - Quando una chat supera il limite, i messaggi storici vengono letti da Postgres e riassunti in background da Celery, estraendo anche i temi principali della discussione.
+   - Nelle interazioni successive, il riassunto e i tag storici vengono inseriti come contesto di sistema (system message), preservando la finestra di contesto di Ollama ed abbassando i tempi di calcolo della risposta.
 
 ---
 
-## 🛠️ Prerequisiti
+## Prerequisiti
 - **Python 3.11** o superiore.
 - **Ollama** installato ed avviato.
-- **Redis** (installato localmente o eseguito tramite Docker).
+- **PostgreSQL** e **Redis** installati o eseguiti via Docker.
 
 ---
 
-## 🐳 Avvio Rapido con Docker Compose (Raccomandato)
+## Avvio Rapido con Docker Compose (Raccomandato)
 
-Per facilitare lo sviluppo locale, è presente una configurazione di container completa:
+La configurazione a container è pronta all'uso e configura automaticamente tutti i servizi, incluse le migrazioni iniziali del database:
 
 ```bash
 cd backend
 docker-compose up --build
 ```
 
-Questo comando avvia automaticamente:
-- **FastAPI** (`http://localhost:8000`)
-- **Redis** (`localhost:6379`)
-- **Celery Worker** (gestione dei task asincroni)
-- **Celery Beat** (scheduler dei task periodici)
-- **Flower** (`http://localhost:5555` - interfaccia di monitoraggio dei task Celery)
+Questo comando avvia:
+- **FastAPI Backend** (`http://localhost:8000`)
+- **PostgreSQL** (porta `5432` con credenziali di default `postgres/postgres` e database `hatsune_assistant`)
+- **Redis** (porta `6379`)
+- **Celery Worker** (gestione task in background)
+- **Celery Beat** (scheduler compiti pianificati)
+- **Flower** (`http://localhost:5555` - monitoraggio delle code dei task)
+
+All'avvio, il container di FastAPI esegue automaticamente `alembic upgrade head` per allineare le tabelle all'ultima migrazione disponibile.
 
 ---
 
-## ⚙️ Avvio Manuale (Sviluppo Locale)
+## Avvio Manuale (Sviluppo Locale)
 
-Se preferisci avviare i servizi localmente senza Docker:
+Se desideri eseguire i servizi singolarmente sul tuo computer:
 
-### 1. Avviare Redis
-Assicurati che Redis sia attivo sulla porta predefinita `6379`.
-- **Windows**: Avvia il servizio Redis tramite WSL (`sudo service redis-server start`) o l'installazione nativa MSI.
-- **macOS**: `brew services start redis`
+### 1. Avviare i Database
+Assicurati che PostgreSQL (porta 5432) e Redis (porta 6379) siano attivi sul computer host.
+Esempio di creazione del database in PostgreSQL:
+```sql
+CREATE DATABASE hatsune_assistant;
+```
 
-### 2. Configurare l'Ambiente virtuale
-```powershell
+### 2. Configurare l'Ambiente virtuale ed installare le dipendenze
+```bash
+cd backend
 python -m venv venv
-.\venv\Scripts\Activate.ps1
+
+# Attivazione venv:
+# Windows (PowerShell): .\venv\Scripts\Activate.ps1
+# macOS/Linux: source venv/bin/activate
+
 pip install -r requirements.txt
 ```
 
-### 3. Avviare FastAPI (Backend API)
-```powershell
-uvicorn app.main:app --reload
-```
-
-### 4. Avviare Celery Worker
-```powershell
-celery -A app.celery_app worker --loglevel=info
-```
-*(Nota per Windows: se riscontri problemi di concorrenza, puoi forzare la modalità pool singola con `celery -A app.celery_app worker --loglevel=info -P solo`)*
-
-### 5. Avviare Celery Beat (Scheduler)
-```powershell
-celery -A app.celery_app beat --loglevel=info
-```
-
-### 6. Avviare Flower (Monitoraggio Task - Opzionale)
-```powershell
-celery -A app.celery_app flower --port=5555
-```
-
----
-
-## 📝 Configurazione File `.env`
-
-Il file `.env` contiene le nuove variabili di configurazione di Redis e della memoria conversazionale:
-
+### 3. Configurazione del file .env
+Crea o modifica il file `.env` inserendo le credenziali e gli URL corretti:
 ```ini
 OLLAMA_BASE_URL=http://localhost:11434
 DEFAULT_MODEL=llama3:latest
 APP_ENV=development
 
-# Configurazione TTS locale (Piper)
-TTS_PROVIDER=piper
-TTS_DEFAULT_VOICE=it_IT-paola-medium
-TTS_DEFAULT_SPEED=1.0
-TTS_DEFAULT_LANG=it
+# Configurazione database PostgreSQL asincrono
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/hatsune_assistant
 
-# Configurazione Redis & Celery
+# Configurazione Redis
 REDIS_URL=redis://localhost:6379/0
 REDIS_CACHE_TTL_SECONDS=300
 REDIS_HEALTH_TTL_SECONDS=10
 REDIS_MODELS_TTL_SECONDS=300
 CONVERSATION_MEMORY_MAX_MESSAGES=8
+```
 
-# Timeout e Sicurezza
-REQUEST_TIMEOUT_SECONDS=60.0
-STREAM_TIMEOUT_SECONDS=90.0
-CORS_ORIGINS=*
+### 4. Eseguire le Migrazioni del Database (Alembic)
+Prima di avviare l'applicazione, applica le migrazioni per creare la struttura delle tabelle:
+```bash
+alembic upgrade head
+```
+
+### 5. Avviare i servizi del backend
+Esegui ciascun comando in un terminale separato con l'ambiente virtuale attivo:
+
+**FastAPI Server**:
+```bash
+uvicorn app.main:app --reload
+```
+
+**Celery Worker**:
+```bash
+celery -A app.celery_app worker --loglevel=info
+```
+*(Nota per Windows: se riscontri problemi di concorrenza, aggiungi l'opzione `-P solo`)*
+
+**Celery Beat (Scheduler)**:
+```bash
+celery -A app.celery_app beat --loglevel=info
 ```
 
 ---
 
-## 🔌 API Principali ed Integrazioni
+## Gestione delle Migrazioni con Alembic
 
-### 1. Lista Modelli con Cache (`/api/v1/models`)
-- **GET**: Restituisce la lista dei modelli caricati da cache Redis (se presente).
-- **POST `/api/v1/models/refresh`**: Invalida esplicitamente la cache dei modelli e avvia un task in background per interpellare Ollama e ripopolarla.
+Alembic è configurato per lavorare in modalità asincrona. I comandi principali per la gestione dello schema del database sono:
 
-### 2. Sintesi Vocale Intelligente (`/api/v1/tts`)
-- **POST**: Genera l'audio. Se lo stesso testo viene richiesto, l'endpoint intercetta l'hash in Redis e restituisce il file WAV istantaneamente, bypassando la generazione di Piper.
+### Creare una nuova migrazione automatica (autogenerate)
+Quando modifichi o aggiungi un modello ORM di SQLAlchemy in `app/db/models/`, puoi generare automaticamente il file di migrazione confrontando i modelli con lo stato del database attivo:
+```bash
+alembic revision --autogenerate -m "Descrizione della modifica"
+```
+Il file di migrazione verrà creato all'interno della cartella `alembic/versions/`.
 
-### 3. Diagnostica (`/api/v1/health/diagnostics`)
-- **GET**: Ritorna lo stato dettagliato di Redis (connesso/offline, conteggio chiavi in cache, chiavi attive) e dei worker Celery.
+### Applicare le migrazioni al database (Upgrade)
+Per aggiornare il database all'ultima versione disponibile:
+```bash
+alembic upgrade head
+```
+
+### Annullare l'ultima migrazione applicata (Downgrade)
+Per tornare indietro di una versione di migrazione:
+```bash
+alembic downgrade -1
+```
 
 ---
 
-## 🧪 Come Testare i Task Periodici
-Per testare i task periodici in sviluppo senza aspettare gli intervalli pianificati:
-1. Apri la dashboard di **Flower** (`http://localhost:5555`) per verificare l'esecuzione.
-2. Invia una chiamata `POST` a `/api/v1/models/refresh` per forzare l'esecuzione istantanea del task di aggiornamento cache.
-3. Puoi invocare direttamente i task nel codice o tramite shell Python per scopi di test:
-   ```python
-   from app.tasks.cleanup_tasks import cleanup_old_audio_files_task
-   cleanup_old_audio_files_task.delay()
-   ```
+## API Principali del Backend
+
+Le API sono disponibili con prefisso `/api/v1/` e documentazione interattiva su `http://localhost:8000/docs`.
+
+### Gestione Conversazioni (Nuove API)
+- **`GET /conversations`**: Ritorna la lista di tutte le chat registrate su PostgreSQL in ordine di aggiornamento.
+- **`GET /conversations/{id}`**: Ritorna i dettagli strutturati di una specifica chat, comprensivi di summary testuale e tag.
+- **`GET /conversations/{id}/messages`**: Restituisce la cronologia completa ed ordinata dei messaggi scambiati.
+- **`POST /conversations`**: Crea manualmente una nuova sessione di conversazione nel DB.
+- **`DELETE /conversations/{id}`**: Elimina permanentemente una chat ed i suoi messaggi in cascata, invalidando anche i dati presenti in cache Redis.
+
+### Endpoint di Chat e TTS
+- **`POST /chat`**: Endpoint standard. Salva i messaggi su Postgres, ottimizza la cronologia tramite summary e topic e persiste la risposta generata dal modello.
+- **`POST /chat/stream`**: Endpoint in streaming Server-Sent Events. Ottimizza la cronologia ed accumula progressivamente i token, salvando la risposta dell'assistente nel database Postgres solo a completamento dello streaming.
+- **`POST /tts`**: Genera l'audio Piper TTS. Utilizza la cache Redis per saltare il calcolo C++ e servire file WAV identici pregressi.
+- **`GET /health/diagnostics`**: Espone lo stato di diagnostica ed integrità di Redis (stato, conteggio e anteprima chiavi salvate) e Celery (presenza e identificativi dei worker attivi).

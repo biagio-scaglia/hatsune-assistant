@@ -2,15 +2,19 @@ from datetime import datetime
 import logging
 import hashlib
 import os
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.config import settings
 from ..core.rate_limit import limiter
+from ..core.db import get_db
 from ..schemas.chat import Message
 from ..schemas.tts import TTSRequest, TTSResponse, ChatWithTTSRequest, ChatWithTTSResponse
 from ..services.ollama_service import OllamaService
 from ..services.tts_service import TTSService, AUDIO_DIR
 from ..services.conversation_memory_service import conversation_memory_service
 from ..services.cache_service import CacheService
+from ..db.repositories.conversation_repository import ConversationRepository
+
 
 logger = logging.getLogger(__name__)
 
@@ -86,12 +90,17 @@ async def synthesize_text(tts_request: TTSRequest, request: Request):
 
 @router.post("/chat-with-tts", response_model=ChatWithTTSResponse)
 @limiter.limit(settings.RATE_LIMIT_TTS)
-async def chat_with_tts(chat_with_tts_request: ChatWithTTSRequest, request: Request):
+async def chat_with_tts(
+    chat_with_tts_request: ChatWithTTSRequest, 
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
     """
     Pipeline unificata (Chat + TTS):
-    1. Ottimizza la cronologia tramite summary.
+    1. Ottimizza la cronologia tramite Postgres e summary.
     2. Chiama Ollama per la risposta testuale.
-    3. Sintetizza l'audio WAV (sfruttando la cache audio).
+    3. Persiste i messaggi nel database Postgres.
+    4. Sintetizza l'audio WAV (sfruttando la cache audio).
     """
     request_id = getattr(request.state, "request_id", "unknown")
     model = chat_with_tts_request.model or settings.DEFAULT_MODEL
@@ -105,6 +114,7 @@ async def chat_with_tts(chat_with_tts_request: ChatWithTTSRequest, request: Requ
     
     # Ottimizzazione memoria conversazionale (summary + ultimi N messaggi)
     optimized_messages = await conversation_memory_service.optimize_history(
+        db=db,
         messages=chat_with_tts_request.messages,
         conversation_id=conversation_id,
         model=model
@@ -123,6 +133,16 @@ async def chat_with_tts(chat_with_tts_request: ChatWithTTSRequest, request: Requ
         
     assistant_content = response_data.get("message", {}).get("content", "")
     time_str = datetime.now().strftime("%H:%M")
+    
+    # Salva la risposta dell'assistente in PostgreSQL
+    if assistant_content.strip():
+        await ConversationRepository.add_message(
+            db=db,
+            conversation_id=conversation_id,
+            role="assistant",
+            content=assistant_content,
+            provider="Ollama (Locale)"
+        )
     
     # 2. Genera l'audio partendo dalla risposta testuale di Ollama (sfruttando il caching audio)
     audio_url = None

@@ -15,21 +15,43 @@ services:
       timeout: 3s
       retries: 5
 
+  postgres:
+    image: postgres:15-alpine
+    container_name: hatsune_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=hatsune_assistant
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hatsune_assistant"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   fastapi:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: hatsune_backend
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8000:8000"
     volumes:
       - .:/app
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/hatsune_assistant
     env_file:
       - .env
     depends_on:
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     restart: unless-stopped
 
@@ -43,10 +65,13 @@ services:
       - .:/app
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/hatsune_assistant
     env_file:
       - .env
     depends_on:
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     restart: unless-stopped
 
@@ -60,10 +85,13 @@ services:
       - .:/app
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/hatsune_assistant
     env_file:
       - .env
     depends_on:
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     restart: unless-stopped
 
@@ -81,3 +109,4 @@ services:
 
 volumes:
   redis_data:
+  postgres_data:
