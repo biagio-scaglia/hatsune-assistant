@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     PIPER_CONFIG_PATH: Optional[str] = None
     AUDIO_OUTPUT_DIR: str = "app/static/generated_audio"
 
+    # Impostazioni Redis & Caching
+    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_CACHE_TTL_SECONDS: int = 300
+    REDIS_HEALTH_TTL_SECONDS: int = 10
+    REDIS_MODELS_TTL_SECONDS: int = 300
+    CONVERSATION_MEMORY_MAX_MESSAGES: int = 8
+
 
     # Impostazioni di Hardening & Timeout
     REQUEST_TIMEOUT_SECONDS: float = 60.0

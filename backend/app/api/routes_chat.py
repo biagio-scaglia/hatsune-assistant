@@ -6,6 +6,7 @@ from ..core.config import settings
 from ..core.rate_limit import limiter
 from ..schemas.chat import ChatRequest, ChatResponse, Message
 from ..services.ollama_service import OllamaService
+from ..services.conversation_memory_service import conversation_memory_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -16,21 +17,26 @@ ollama_service = OllamaService()
 async def chat(chat_request: ChatRequest, request: Request):
     """
     Endpoint di chat sincrono (non-streaming).
-    Riceve la cronologia dei messaggi e restituisce la risposta completa di Ollama.
+    Riceve la cronologia dei messaggi, la ottimizza con il riassunto storico e invia a Ollama.
     """
     request_id = getattr(request.state, "request_id", "unknown")
     model = chat_request.model or settings.DEFAULT_MODEL
     
-    logger.info(f"[{request_id}] Richiesta chat. Modello: {model} | Messaggi in ingresso: {len(chat_request.messages)}")
+    # Calcola l'ID sessione basandosi sull'hash del primo messaggio utente
+    conversation_id = conversation_memory_service.get_conversation_id(chat_request.messages)
     
-    ollama_messages = [
-        {"role": msg.role, "content": msg.content} 
-        for msg in chat_request.messages
-    ]
+    logger.info(f"[{request_id}] Richiesta chat. Modello: {model} | ID Conversazione: {conversation_id} | Messaggi in ingresso: {len(chat_request.messages)}")
+    
+    # Ottimizzazione memoria conversazionale (summary + ultimi N messaggi)
+    optimized_messages = await conversation_memory_service.optimize_history(
+        messages=chat_request.messages,
+        conversation_id=conversation_id,
+        model=model
+    )
     
     response_data = await ollama_service.chat(
         model=model,
-        messages=ollama_messages,
+        messages=optimized_messages,
         temperature=chat_request.temperature
     )
     
@@ -51,21 +57,26 @@ async def chat(chat_request: ChatRequest, request: Request):
 async def chat_stream(chat_request: ChatRequest, request: Request):
     """
     Endpoint di chat in streaming (Server-Sent Events).
-    Consente di ricevere la risposta progressivamente per una UX immediata.
+    Ottimizza la cronologia tramite summary e invia a Ollama in streaming.
     """
     request_id = getattr(request.state, "request_id", "unknown")
     model = chat_request.model or settings.DEFAULT_MODEL
     
-    logger.info(f"[{request_id}] Richiesta chat streaming. Modello: {model} | Messaggi in ingresso: {len(chat_request.messages)}")
+    # Calcola l'ID sessione basandosi sull'hash del primo messaggio utente
+    conversation_id = conversation_memory_service.get_conversation_id(chat_request.messages)
     
-    ollama_messages = [
-        {"role": msg.role, "content": msg.content} 
-        for msg in chat_request.messages
-    ]
+    logger.info(f"[{request_id}] Richiesta chat streaming. Modello: {model} | ID Conversazione: {conversation_id} | Messaggi in ingresso: {len(chat_request.messages)}")
+    
+    # Ottimizzazione memoria conversazionale (summary + ultimi N messaggi)
+    optimized_messages = await conversation_memory_service.optimize_history(
+        messages=chat_request.messages,
+        conversation_id=conversation_id,
+        model=model
+    )
     
     generator = await ollama_service.chat_stream(
         model=model,
-        messages=ollama_messages,
+        messages=optimized_messages,
         temperature=chat_request.temperature
     )
     

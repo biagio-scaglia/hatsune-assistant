@@ -1,177 +1,152 @@
 # Hatsune Assistant AI Backend
 
-Questo è il backend di servizio in Python (FastAPI) per **Hatsune Assistant**. Funge da bridge (ponte) sicuro e scalabile tra l'applicazione client in Flutter e le API locali/remote di Ollama, integrando ora la sintesi vocale locale ad alte prestazioni tramite **Piper TTS**.
-
-## Funzionalità principali
-1. **Health Check (`/api/v1/health`)**: Verifica lo stato del backend e la connettività con Ollama.
-2. **Gestione Modelli (`/api/v1/models` e `/api/v1/models/default`)**: Elenca e seleziona i LLM disponibili.
-3. **Chat sincrona (`/api/v1/chat`)**: Endpoint di chat standard con risposta JSON.
-4. **Chat streaming (`/api/v1/chat/stream`)**: Risposta progressiva in tempo reale tramite Server-Sent Events (SSE).
-5. **Sintesi Vocale Standalone (`/api/v1/tts`)**: Genera un file WAV a partire da un testo e fornisce un URL statico per la riproduzione.
-6. **Pipeline Chat + TTS (`/api/v1/chat-with-tts`)**: Interroga Ollama e converte immediatamente la risposta in audio, restituendo testo ed URL audio in una singola richiesta.
-7. **Posa e Parlato coordinati**: I link audio consentono a Flutter di riprodurre la voce e coordinare l'animazione di Miku ("talking" durante la riproduzione).
+Questo è il backend di servizio in Python (FastAPI) per **Hatsune Assistant**. Funge da bridge (ponte) sicuro, scalabile e ad alte prestazioni tra l'applicazione client in Flutter e le API locali/remote di Ollama, integrando la sintesi vocale locale **Piper TTS** ed ottimizzando l'intera elaborazione tramite **Redis** e **Celery**.
 
 ---
 
-## Prerequisiti
-- **Python 3.11** o superiore installato sul computer.
-- **Ollama** installato e avviato sul proprio PC.
+## 🚀 Nuove Funzionalità di Ottimizzazione e Scalabilità
+
+Il backend è stato potenziato con un'architettura asincrona avanzata basata su Redis e Celery:
+
+1. **Redis Caching Centralizzato**:
+   - Cache con TTL breve (10s) per `/health` per ridurre chiamate ridondanti a Ollama.
+   - Cache con TTL medio (5 min) per `/models` per velocizzare il caricamento della lista modelli.
+   - **TTS Audio Caching**: Caching dei file audio WAV generati basato sull'hash MD5 di `testo + voce + velocità`. Se la stessa frase viene richiesta, viene servita istantaneamente in meno di 1ms bypassed Piper!
+   - Gestione del degrado controllato (*graceful degradation*): se Redis è offline, il backend bypassa la cache e continua a funzionare regolarmente.
+
+2. **Task Asincroni con Celery & Beat**:
+   - **Beat (Task Periodici)**:
+     - Rimozione programmata dei file WAV temporanei (ogni notte alle 02:00) tramite lock distribuito su Redis.
+     - Refresh automatico dei modelli in cache ogni 5 minuti per mantenere i dati pronti in memoria.
+     - Manutenzione e cleanup periodico della cache una volta all'ora.
+   - **Task in Background**:
+     - Sintesi vocale asincrona pesante.
+     - Generazione asincrona del riassunto e dei topic della conversazione.
+
+3. **Memoria Conversazionale Ottimizzata**:
+   - **Finestra Scorrevole**: Invia a Ollama solo gli ultimi $N$ messaggi recenti (configurabile via `CONVERSATION_MEMORY_MAX_MESSAGES`).
+   - **Riassunto & Topic in Background**: Quando la chat supera la soglia, i messaggi storici vengono analizzati asincronamente in Celery per generare un riassunto compatto e 3 topic chiave, salvati in Redis.
+   - Nelle richieste successive, il riassunto storico viene allegato come contesto di sistema (`system message`), evitando di saturare la finestra di contesto di Ollama con messaggi vecchi, riducendo drasticamente la latenza.
+
+4. **Diagnostica Amministrativa (`/api/v1/health/diagnostics`)**:
+   - Endpoint per monitorare in tempo reale lo stato di Redis (connessione, numero e nomi delle chiavi in cache) e Celery (stato dei worker attivi).
 
 ---
 
-## Integrazione Piper TTS Locale (Zero-Dependency)
-
-Il backend integra **Piper TTS** in locale come motore di sintesi vocale principale. 
-Per evitare pesanti compilazioni C++ o problemi di incompatibilità delle librerie ML (PyTorch, ONNX runtime) su Windows con Python 3.14+, il backend utilizza l'eseguibile precompilato ufficiale **Piper standalone (`piper.exe`)**.
-
-### Come funziona il download automatico degli Asset:
-Al primo avvio o alla prima chiamata TTS, il backend verificherà ed eventualmente scaricherà in background (senza bloccare l'avvio di FastAPI) i seguenti file nella cartella `backend/bin/piper/`:
-1. **Motore Piper**: Scarica `piper_windows_amd64.zip` (da GitHub releases v1.2.0) e lo estrae automaticamente.
-2. **Modelli di default**: Scarica da Hugging Face `rhasspy/piper-voices` i file del modello vocale (`.onnx` e `.json`):
-   - Per l'italiano: `it_IT-riccardo-x_low` (voce Riccardo, circa 15 MB)
-   - Per l'inglese: `en_US-lessac-medium` (voce Lessac, circa 15 MB)
-
-> [!NOTE]
-> Fino a quando il download in background non è completato (o in caso di assenza temporanea di connessione internet), il backend genererà automaticamente un **bip sinusoidale modulato (modalità Fallback)**. Questo garantisce che le chiamate API non falliscano mai e il client Flutter possa comunque riprodurre l'audio per testare l'animazione dell'avatar.
-
-### Aggiungere voci personalizzate:
-Puoi aggiungere modelli vocali aggiuntivi scaricandoli manualmente dal repository Hugging Face [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main).
-Inserisci i file `.onnx` e `.json` nella cartella `backend/bin/piper/voices/`. Il nome della voce passato nella richiesta API deve corrispondere esattamente al nome del file (es: `it_IT-paola-medium`). Il backend tenterà di scaricarla automaticamente se non presente localmente!
+## 🛠️ Prerequisiti
+- **Python 3.11** o superiore.
+- **Ollama** installato ed avviato.
+- **Redis** (installato localmente o eseguito tramite Docker).
 
 ---
 
-## Configurazione Rapida
+## 🐳 Avvio Rapido con Docker Compose (Raccomandato)
 
-### 1. File delle variabili d'ambiente (.env)
-Il file `.env` contiene le chiavi di configurazione per Ollama, la sintesi vocale, i timeout e i limiti di sicurezza:
+Per facilitare lo sviluppo locale, è presente una configurazione di container completa:
+
+```bash
+cd backend
+docker-compose up --build
+```
+
+Questo comando avvia automaticamente:
+- **FastAPI** (`http://localhost:8000`)
+- **Redis** (`localhost:6379`)
+- **Celery Worker** (gestione dei task asincroni)
+- **Celery Beat** (scheduler dei task periodici)
+- **Flower** (`http://localhost:5555` - interfaccia di monitoraggio dei task Celery)
+
+---
+
+## ⚙️ Avvio Manuale (Sviluppo Locale)
+
+Se preferisci avviare i servizi localmente senza Docker:
+
+### 1. Avviare Redis
+Assicurati che Redis sia attivo sulla porta predefinita `6379`.
+- **Windows**: Avvia il servizio Redis tramite WSL (`sudo service redis-server start`) o l'installazione nativa MSI.
+- **macOS**: `brew services start redis`
+
+### 2. Configurare l'Ambiente virtuale
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+### 3. Avviare FastAPI (Backend API)
+```powershell
+uvicorn app.main:app --reload
+```
+
+### 4. Avviare Celery Worker
+```powershell
+celery -A app.celery_app worker --loglevel=info
+```
+*(Nota per Windows: se riscontri problemi di concorrenza, puoi forzare la modalità pool singola con `celery -A app.celery_app worker --loglevel=info -P solo`)*
+
+### 5. Avviare Celery Beat (Scheduler)
+```powershell
+celery -A app.celery_app beat --loglevel=info
+```
+
+### 6. Avviare Flower (Monitoraggio Task - Opzionale)
+```powershell
+celery -A app.celery_app flower --port=5555
+```
+
+---
+
+## 📝 Configurazione File `.env`
+
+Il file `.env` contiene le nuove variabili di configurazione di Redis e della memoria conversazionale:
+
 ```ini
 OLLAMA_BASE_URL=http://localhost:11434
 DEFAULT_MODEL=llama3:latest
 APP_ENV=development
 
-# Configurazione TTS locale
+# Configurazione TTS locale (Piper)
 TTS_PROVIDER=piper
-TTS_DEFAULT_VOICE=it_IT-riccardo-x_low
+TTS_DEFAULT_VOICE=it_IT-paola-medium
 TTS_DEFAULT_SPEED=1.0
 TTS_DEFAULT_LANG=it
 
-# Impostazioni specifiche per Piper
-# Se lasciati vuoti, verranno scaricati automaticamente i modelli di default
-PIPER_MODEL_PATH=
-PIPER_CONFIG_PATH=
-# Directory per salvare i file audio WAV generati
-AUDIO_OUTPUT_DIR=app/static/generated_audio
+# Configurazione Redis & Celery
+REDIS_URL=redis://localhost:6379/0
+REDIS_CACHE_TTL_SECONDS=300
+REDIS_HEALTH_TTL_SECONDS=10
+REDIS_MODELS_TTL_SECONDS=300
+CONVERSATION_MEMORY_MAX_MESSAGES=8
 
-# Impostazioni di Hardening & Timeout (in secondi)
+# Timeout e Sicurezza
 REQUEST_TIMEOUT_SECONDS=60.0
 STREAM_TIMEOUT_SECONDS=90.0
-
-# Rate Limiting (richieste per IP)
-RATE_LIMIT_GLOBAL=100/minute
-RATE_LIMIT_CHAT=15/minute
-RATE_LIMIT_TTS=5/minute
-RATE_LIMIT_HEALTH=120/minute
-
-# Validazione Input
-MAX_INPUT_CHARS=2000
-MAX_CONTEXT_MESSAGES=20
-
-# Sicurezza CORS (* per sviluppo locale, oppure lista di URL esatti)
 CORS_ORIGINS=*
 ```
 
-### 2. Creare un ambiente virtuale (venv)
-**Su Windows:**
-```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-```
+---
 
-**Su macOS/Linux:**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
+## 🔌 API Principali ed Integrazioni
 
-### 3. Installare le dipendenze e avviare
-Utilizza lo script preconfigurato su Windows per fare tutto in un clic:
-```powershell
-.\start.bat
-```
-Oppure manualmente:
-```bash
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
+### 1. Lista Modelli con Cache (`/api/v1/models`)
+- **GET**: Restituisce la lista dei modelli caricati da cache Redis (se presente).
+- **POST `/api/v1/models/refresh`**: Invalida esplicitamente la cache dei modelli e avvia un task in background per interpellare Ollama e ripopolarla.
 
-Il server sarà attivo su `http://127.0.0.1:8000` con documentazione interattiva su `http://127.0.0.1:8000/docs`.
+### 2. Sintesi Vocale Intelligente (`/api/v1/tts`)
+- **POST**: Genera l'audio. Se lo stesso testo viene richiesto, l'endpoint intercetta l'hash in Redis e restituisce il file WAV istantaneamente, bypassando la generazione di Piper.
+
+### 3. Diagnostica (`/api/v1/health/diagnostics`)
+- **GET**: Ritorna lo stato dettagliato di Redis (connesso/offline, conteggio chiavi in cache, chiavi attive) e dei worker Celery.
 
 ---
 
-## Esempi di Chiamate API per il TTS
-
-### 1. Sintesi Vocale Standalone (`/tts`)
-Invia un testo per ricevere il link del file audio generato:
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/tts \
-     -H "Content-Type: application/json" \
-     -d '{
-       "text": "Ciao! Sono Hatsune Miku, la tua assistente vocale.",
-       "voice": "it_IT-riccardo-x_low",
-       "speed": 1.0
-     }'
-```
-*Risposta di esempio:*
-```json
-{
-  "success": true,
-  "audio_url": "http://127.0.0.1:8000/static/generated_audio/audio_9a7fd...wav",
-  "text": "Ciao! Sono Hatsune Miku, la tua assistente vocale.",
-  "voice": "it_IT-riccardo-x_low",
-  "speed": 1.0
-}
-```
-
-### 2. Pipeline Chat con Risposta Vocale (`/chat-with-tts`)
-Invia un messaggio per ottenere la risposta del modello LLM in formato testo ed audio coordinati:
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/chat-with-tts \
-     -H "Content-Type: application/json" \
-     -d '{
-       "model": "llama3:latest",
-       "messages": [
-         {"role": "user", "content": "Chi sei?"}
-       ]
-     }'
-```
-*Risposta di esempio:*
-```json
-{
-  "success": true,
-  "message": {
-    "role": "assistant",
-    "content": "Ciao! Sono Hatsune Miku, il tuo assistente virtuale di programmazione..."
-  },
-  "model": "llama3:latest",
-  "time": "12:56",
-  "audio_url": "http://127.0.0.1:8000/static/generated_audio/audio_2f31b...wav",
-  "tts_active": true
-}
-```
-
----
-
-## Strategia di Gestione dello Spazio Disco (Audio Files)
-Il backend implementa un meccanismo automatico di auto-pulizia nel file `app/services/tts_service.py`:
-- All'avvio di ogni sintesi, rimuove i file `.wav` più vecchi di 10 minuti.
-- Limita il numero massimo di file audio conservati nella cartella `static/generated_audio` a un tetto di 50. I file in eccesso vengono eliminati partendo dal più vecchio.
-
----
-
-## Hardening, Rate Limiting & Concorrenza
-
-Il backend implementa diverse misure di sicurezza industriale per prevenire abusi e garantire la fluidità del server:
-1. **Rate Limiting Globale e Specifico**: Ogni richiesta viene tracciata in base all'IP del client. Richieste ripetute e veloci restituiranno un errore `429 Too Many Requests`.
-2. **Correlation ID (`X-Request-ID`)**: Ogni chiamata riceve un UUID univoco propagato sia nei log del server che nell'header della risposta HTTP. Questo rende il tracciamento degli errori immediato.
-3. **Concorrenza Non-Blocking**: La sintesi vocale (Piper) è CPU-bound. Viene delegata a un **Thread Pool separato** (`run_in_threadpool`), evitando di bloccare l'Event Loop di FastAPI.
-4. **Validazione Rigida degli Input**: Pydantic convalida che i messaggi di chat non superino i `MAX_INPUT_CHARS` (2000 caratteri), lo storico non contenga troppi messaggi, e i parametri TTS (velocità e formato nome voce) siano conformi.
+## 🧪 Come Testare i Task Periodici
+Per testare i task periodici in sviluppo senza aspettare gli intervalli pianificati:
+1. Apri la dashboard di **Flower** (`http://localhost:5555`) per verificare l'esecuzione.
+2. Invia una chiamata `POST` a `/api/v1/models/refresh` per forzare l'esecuzione istantanea del task di aggiornamento cache.
+3. Puoi invocare direttamente i task nel codice o tramite shell Python per scopi di test:
+   ```python
+   from app.tasks.cleanup_tasks import cleanup_old_audio_files_task
+   cleanup_old_audio_files_task.delay()
+   ```

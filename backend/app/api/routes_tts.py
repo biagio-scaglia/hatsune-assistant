@@ -1,12 +1,16 @@
 from datetime import datetime
 import logging
+import hashlib
+import os
 from fastapi import APIRouter, Request, HTTPException
 from ..core.config import settings
 from ..core.rate_limit import limiter
 from ..schemas.chat import Message
 from ..schemas.tts import TTSRequest, TTSResponse, ChatWithTTSRequest, ChatWithTTSResponse
 from ..services.ollama_service import OllamaService
-from ..services.tts_service import TTSService
+from ..services.tts_service import TTSService, AUDIO_DIR
+from ..services.conversation_memory_service import conversation_memory_service
+from ..services.cache_service import CacheService
 
 logger = logging.getLogger(__name__)
 
@@ -19,20 +23,44 @@ tts_service = TTSService()
 async def synthesize_text(tts_request: TTSRequest, request: Request):
     """
     Sintetizza il testo fornito in un file audio WAV riproducibile.
-    Costruisce e restituisce l'URL statico del file audio generato.
+    Utilizza la cache per evitare la rigenerazione di frasi identiche con lo stesso modello e velocità.
     """
     request_id = getattr(request.state, "request_id", "unknown")
     voice = tts_request.voice or settings.TTS_DEFAULT_VOICE
     speed = tts_request.speed or settings.TTS_DEFAULT_SPEED
     
+    # Calcola l'hash univoco della richiesta per il caching dell'audio
+    cache_string = f"{tts_request.text}:{voice}:{speed}"
+    audio_hash = hashlib.md5(cache_string.encode('utf-8')).hexdigest()
+    cache_key = f"tts:audio:{audio_hash}"
+    
     logger.info(f"[{request_id}] Richiesta TTS. Caratteri: {len(tts_request.text)} | Voce: {voice} | Velocità: {speed}")
     
+    # Verifica se l'audio è già presente in cache ed il file fisico esiste
+    cached_filename = CacheService.get(cache_key)
+    if cached_filename:
+        file_path = os.path.join(AUDIO_DIR, cached_filename)
+        if os.path.exists(file_path):
+            base_url = str(request.base_url)
+            audio_url = f"{base_url}static/generated_audio/{cached_filename}"
+            logger.info(f"[{request_id}] Servito file audio da cache Redis (HIT). File: {cached_filename}")
+            return TTSResponse(
+                success=True,
+                audio_url=audio_url,
+                text=tts_request.text,
+                voice=voice,
+                speed=speed
+            )
+
     try:
         filename = await tts_service.synthesize(
             text=tts_request.text,
             voice=tts_request.voice,
             speed=tts_request.speed
         )
+        
+        # Salva il nome del file in cache Redis per future richieste simili (TTL 12 ore)
+        CacheService.set(cache_key, filename, ttl=43200)
         
         base_url = str(request.base_url)
         audio_url = f"{base_url}static/generated_audio/{filename}"
@@ -61,27 +89,32 @@ async def synthesize_text(tts_request: TTSRequest, request: Request):
 async def chat_with_tts(chat_with_tts_request: ChatWithTTSRequest, request: Request):
     """
     Pipeline unificata (Chat + TTS):
-    1. Invia la cronologia dei messaggi ad Ollama per generare la risposta testuale.
-    2. Sintetizza la risposta in audio WAV.
-    3. Ritorna il testo ed il link dell'audio al client Flutter.
+    1. Ottimizza la cronologia tramite summary.
+    2. Chiama Ollama per la risposta testuale.
+    3. Sintetizza l'audio WAV (sfruttando la cache audio).
     """
     request_id = getattr(request.state, "request_id", "unknown")
     model = chat_with_tts_request.model or settings.DEFAULT_MODEL
     voice = chat_with_tts_request.voice or settings.TTS_DEFAULT_VOICE
     speed = chat_with_tts_request.speed or settings.TTS_DEFAULT_SPEED
     
-    logger.info(f"[{request_id}] Richiesta Chat-With-TTS. Modello: {model} | Messaggi: {len(chat_with_tts_request.messages)} | Voce: {voice}")
+    # Calcola l'ID sessione basandosi sull'hash del primo messaggio utente
+    conversation_id = conversation_memory_service.get_conversation_id(chat_with_tts_request.messages)
     
-    ollama_messages = [
-        {"role": msg.role, "content": msg.content} 
-        for msg in chat_with_tts_request.messages
-    ]
+    logger.info(f"[{request_id}] Richiesta Chat-With-TTS. Modello: {model} | ID Conversazione: {conversation_id} | Voce: {voice}")
+    
+    # Ottimizzazione memoria conversazionale (summary + ultimi N messaggi)
+    optimized_messages = await conversation_memory_service.optimize_history(
+        messages=chat_with_tts_request.messages,
+        conversation_id=conversation_id,
+        model=model
+    )
     
     # 1. Chiama Ollama per ottenere la risposta di testo
     try:
         response_data = await ollama_service.chat(
             model=model,
-            messages=ollama_messages,
+            messages=optimized_messages,
             temperature=chat_with_tts_request.temperature
         )
     except Exception as e:
@@ -91,22 +124,38 @@ async def chat_with_tts(chat_with_tts_request: ChatWithTTSRequest, request: Requ
     assistant_content = response_data.get("message", {}).get("content", "")
     time_str = datetime.now().strftime("%H:%M")
     
-    # 2. Genera l'audio partendo dalla risposta testuale di Ollama
+    # 2. Genera l'audio partendo dalla risposta testuale di Ollama (sfruttando il caching audio)
     audio_url = None
     tts_active = False
     
     if assistant_content.strip():
         try:
-            logger.info(f"[{request_id}] Generazione audio per risposta di {len(assistant_content)} caratteri...")
-            filename = await tts_service.synthesize(
-                text=assistant_content,
-                voice=chat_with_tts_request.voice,
-                speed=chat_with_tts_request.speed
-            )
-            base_url = str(request.base_url)
-            audio_url = f"{base_url}static/generated_audio/{filename}"
-            tts_active = True
-            logger.info(f"[{request_id}] Audio sintetizzato con successo per la chat. File: {filename}")
+            # Controllo cache per TTS
+            cache_string = f"{assistant_content}:{voice}:{speed}"
+            audio_hash = hashlib.md5(cache_string.encode('utf-8')).hexdigest()
+            cache_key = f"tts:audio:{audio_hash}"
+            
+            cached_filename = CacheService.get(cache_key)
+            if cached_filename and os.path.exists(os.path.join(AUDIO_DIR, cached_filename)):
+                base_url = str(request.base_url)
+                audio_url = f"{base_url}static/generated_audio/{cached_filename}"
+                tts_active = True
+                logger.info(f"[{request_id}] Audio sintetizzato caricato da cache per la chat. File: {cached_filename}")
+            else:
+                logger.info(f"[{request_id}] Generazione audio per risposta di {len(assistant_content)} caratteri...")
+                filename = await tts_service.synthesize(
+                    text=assistant_content,
+                    voice=chat_with_tts_request.voice,
+                    speed=chat_with_tts_request.speed
+                )
+                
+                # Salva in cache Redis
+                CacheService.set(cache_key, filename, ttl=43200)
+                
+                base_url = str(request.base_url)
+                audio_url = f"{base_url}static/generated_audio/{filename}"
+                tts_active = True
+                logger.info(f"[{request_id}] Audio sintetizzato con successo per la chat. File: {filename}")
         except Exception as e:
             logger.error(f"[{request_id}] Sintesi vocale fallita in chat-with-tts ma continuo: {e}")
             tts_active = False
