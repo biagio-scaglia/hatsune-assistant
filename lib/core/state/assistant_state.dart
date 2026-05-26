@@ -269,7 +269,7 @@ class AssistantState extends ChangeNotifier {
     } catch (e) {
       _messages.add({
         'sender': 'assistant',
-        'text': '⚠️ Errore di connessione a Ollama: Assicurati che Ollama sia avviato localmente su $ollamaUrl e che il modello $_activeModel sia installato.\n\nDettagli errore: $e',
+        'text': '⚠️ Errore di connessione a Ollama: Assicurati che Ollama sia avviato localmente su $ollamaUrl e che il modello ${_activeModel?.name ?? ""} sia installato.\n\nDettagli errore: $e',
         'time': _getCurrentTime(),
       });
       setMikuState(MikuState.idle);
