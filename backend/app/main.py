@@ -7,7 +7,8 @@ from .core.logging import setup_logging
 from .core.exceptions import register_exception_handlers
 from .core.rate_limit import limiter
 from .core.middleware import TracingMiddleware
-from .api import routes_health, routes_models, routes_chat, routes_tts
+from .api import routes_health, routes_models, routes_chat, routes_tts, routes_conversations
+
 
 # Configura il logging all'avvio
 setup_logging()
