@@ -2,17 +2,19 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../features/models/domain/model_info.dart';
 
-/// Servizio di interfaccia con le API locali/remote di Ollama.
+/// Servizio di interfaccia con il nostro backend AI in FastAPI.
+/// Gestisce il recupero dei modelli e l'invio dei messaggi di chat tramite bridge.
 class OllamaService {
   String baseUrl;
 
-  OllamaService({this.baseUrl = 'http://localhost:11434/api'});
+  // L'URL predefinito punta al backend FastAPI (porta 8000) anziché a Ollama direttamente
+  OllamaService({this.baseUrl = 'http://localhost:8000/api/v1'});
 
-  /// Recupera la lista dei modelli locali installati su Ollama.
+  /// Recupera la lista dei modelli locali caricati in Ollama attraverso il backend.
   Future<List<ModelInfo>> fetchLocalModels() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/tags')).timeout(
-        const Duration(seconds: 4),
+      final response = await http.get(Uri.parse('$baseUrl/models')).timeout(
+        const Duration(seconds: 5),
       );
 
       if (response.statusCode == 200) {
@@ -20,34 +22,26 @@ class OllamaService {
         final List<dynamic> modelsJson = data['models'] ?? [];
 
         return modelsJson.map((m) {
-          final name = m['name'] as String;
-          // Calcola la dimensione del file in GB o MB leggibili
-          final sizeInBytes = m['size'] as int? ?? 0;
-          final double sizeInGb = sizeInBytes / (1024 * 1024 * 1024);
-          final sizeStr = sizeInGb > 0.1 
-              ? '${sizeInGb.toStringAsFixed(2)} GB' 
-              : '${(sizeInBytes / (1024 * 1024)).toStringAsFixed(0)} MB';
-
           return ModelInfo(
-            id: name,
-            name: name,
-            provider: 'Ollama (Locale)',
+            id: m['id'] as String,
+            name: m['name'] as String,
+            provider: m['provider'] as String? ?? 'Ollama (Locale)',
             type: ModelType.local,
             status: ModelStatus.downloaded,
-            size: sizeStr,
-            description: 'Modello locale caricato ed eseguito direttamente tramite Ollama.',
+            size: m['size'] as String,
+            description: m['description'] as String? ?? '',
           );
         }).toList();
       } else {
-        throw Exception('Risposta non valida da Ollama: ${response.statusCode}');
+        throw Exception('Risposta non valida dal backend: ${response.statusCode}');
       }
     } catch (e) {
-      // In caso di errore di connessione (es. Ollama spento), propaghiamo l'eccezione
+      // Propaga l'eccezione di rete o timeout
       rethrow;
     }
   }
 
-  /// Invia la cronologia dei messaggi alla chat di Ollama e restituisce la risposta dell'assistente.
+  /// Invia la cronologia dei messaggi al backend e restituisce la risposta dell'assistente.
   Future<String> sendChatMessage(String model, List<Map<String, String>> messages) async {
     try {
       final response = await http.post(
@@ -56,15 +50,14 @@ class OllamaService {
         body: json.encode({
           'model': model,
           'messages': messages,
-          'stream': false, // Semplificato senza streaming per una UI robusta ed immediata
         }),
-      ).timeout(const Duration(seconds: 45));
+      ).timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
         return data['message']['content'] as String;
       } else {
-        throw Exception('Errore risposta Ollama (${response.statusCode}): ${response.body}');
+        throw Exception('Errore risposta backend (${response.statusCode}): ${response.body}');
       }
     } catch (e) {
       rethrow;
