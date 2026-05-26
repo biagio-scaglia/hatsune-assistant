@@ -41,6 +41,10 @@ os.makedirs(VOICES_DIR, exist_ok=True)
 
 # URL statiche e mappature per il download dei modelli di default
 VOICE_URLS: Dict[str, Dict[str, str]] = {
+    "it_IT-paola-medium": {
+        "onnx": "https://huggingface.co/rhasspy/piper-voices/resolve/main/it/it_IT/paola/medium/it_IT-paola-medium.onnx",
+        "json": "https://huggingface.co/rhasspy/piper-voices/resolve/main/it/it_IT/paola/medium/it_IT-paola-medium.onnx.json"
+    },
     "it_IT-riccardo-x_low": {
         "onnx": "https://huggingface.co/rhasspy/piper-voices/resolve/main/it/it_IT/riccardo/x_low/it_IT-riccardo-x_low.onnx",
         "json": "https://huggingface.co/rhasspy/piper-voices/resolve/main/it/it_IT/riccardo/x_low/it_IT-riccardo-x_low.onnx.json"

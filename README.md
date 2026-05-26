@@ -30,7 +30,7 @@ L'avatar 3D cambia posa a seconda dello stato di elaborazione dell'assistente:
   - **Configurazione Centralizzata**: Gestione dinamica dell'indirizzo host e delle chiavi da file `.env`.
 - **Integrazione Vocale Piper Zero-Dependency**:
   - **Zero installazioni pesanti**: Viene scaricato in background l'eseguibile precompilato ufficiale `piper.exe` per Windows e i modelli ONNX di default al primo avvio.
-  - **Gestione Multi-lingua**: Supporta l'italiano (`it_IT-riccardo-x_low`) e l'inglese (`en_US-lessac-medium`) scaricati su richiesta dal server.
+  - **Gestione Multi-lingua e Multi-voce**: Supporta voci italiane maschili (`it_IT-riccardo-x_low`) e femminili (`it_IT-paola-medium`), più l'inglese (`en_US-lessac-medium`), scaricate automaticamente su richiesta.
   - **Fallback Intelligente**: Se i binari sono in fase di download, riproduce un segnale acustico cyber in modalità fallback per non interrompere i test dell'app.
 - **Layout Responsive Premium**:
   - **Desktop/Tablet**: Split-screen con barra di navigazione laterale (`NavigationRail`) e visualizzatore Miku 3D persistente sulla destra.
@@ -131,10 +131,11 @@ flutter run
 ```text
 ├── backend/                       # Backend FastAPI (Python)
 │   ├── app/
-│   │   ├── api/                   # Router e endpoint (/chat, /models, /health)
+│   │   ├── api/                   # Router e endpoint (/chat, /models, /health, /tts)
 │   │   ├── core/                  # Config, logger, eccezioni e handler
 │   │   ├── schemas/               # Schemi Pydantic per validazione dati
-│   │   └── services/              # Servizio Ollama (con AsyncClient httpx)
+│   │   └── services/              # Servizio Ollama e TTSService (Piper)
+│   ├── bin/piper/                 # Binario piper.exe e modelli ONNX (auto-scaricati)
 │   ├── requirements.txt           # Dipendenze Python
 │   └── README.md                  # Manuale specifico del backend
 │
