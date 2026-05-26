@@ -9,6 +9,12 @@ class Settings(BaseSettings):
     DEFAULT_MODEL: str = "llama3:latest"
     APP_ENV: str = "development"
 
+    # Impostazioni TTS Locale
+    TTS_PROVIDER: str = "kokoro"
+    TTS_DEFAULT_VOICE: str = "af_heart"
+    TTS_DEFAULT_SPEED: float = 1.0
+    TTS_DEFAULT_LANG: str = "a"
+
     # Configura Pydantic per leggere dal file .env nella radice del backend
     model_config = SettingsConfigDict(
         env_file=os.path.join(
