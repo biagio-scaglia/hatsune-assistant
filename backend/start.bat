@@ -8,6 +8,9 @@ echo.
 :: Sposta la directory di lavoro sul percorso dello script
 cd /d "%~dp0"
 
+:: Porta di default per il server
+set SERVER_PORT=8000
+
 :: 1. Verifica la presenza del venv
 if exist "venv" goto venv_exists
 
@@ -38,11 +41,27 @@ echo [INFO] Il server si avviera' immediatamente e scarichera' i binari e i mode
 echo [INFO] Fino al termine del download, le richieste TTS useranno la MODALITA' FALLBACK (bip sinusoidale).
 echo.
 
-:: 4. Avvio di Uvicorn
-echo [INFO] Avvio del server Uvicorn su http://127.0.0.1:8000 ...
-echo [INFO] Swagger docs disponibili su http://127.0.0.1:8000/docs
+:: 4. Controlla se la porta e' gia' occupata e libera se necessario
+echo [INFO] Verifica che la porta %SERVER_PORT% sia libera...
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":%SERVER_PORT% " ^| findstr "LISTENING"') do (
+    echo [WARN] La porta %SERVER_PORT% e' gia' occupata dal processo PID %%a.
+    echo [INFO] Terminazione del processo in conflitto...
+    taskkill /F /PID %%a >nul 2>&1
+    if not errorlevel 1 (
+        echo [OK] Processo PID %%a terminato. Porta %SERVER_PORT% liberata.
+    ) else (
+        echo [WARN] Impossibile terminare il processo PID %%a. Tentativo di avvio comunque...
+    )
+    :: Breve attesa per rilascio socket
+    timeout /t 2 /nobreak >nul
+)
 echo.
-uvicorn app.main:app --reload
+
+:: 5. Avvio di Uvicorn
+echo [INFO] Avvio del server Uvicorn su http://127.0.0.1:%SERVER_PORT% ...
+echo [INFO] Swagger docs disponibili su http://127.0.0.1:%SERVER_PORT%/docs
+echo.
+uvicorn app.main:app --host 127.0.0.1 --port %SERVER_PORT% --reload
 if errorlevel 1 goto uvicorn_error
 
 goto end
@@ -60,7 +79,12 @@ echo [ERRORE] Impossibile installare le dipendenze core.
 goto error
 
 :uvicorn_error
+echo.
 echo [ERRORE] Arresto del server o errore di avvio di Uvicorn.
+echo [INFO] Possibili cause:
+echo   - La porta %SERVER_PORT% e' ancora occupata da un altro processo
+echo   - Errore nel codice Python (controlla i log sopra)
+echo   - Dipendenze mancanti o incompatibili
 goto error
 
 :error
