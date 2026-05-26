@@ -32,22 +32,10 @@ if errorlevel 1 goto pip_error
 echo [OK] Dipendenze core verificate.
 echo.
 
-:: 3b. Tentativo installazione dipendenze TTS (Kokoro)
-echo [INFO] Tentativo di installazione dipendenze TTS (Kokoro/audio)...
-echo [INFO] Nota: Su Python 3.14 o senza compilatore C++, l'installazione di spacy/numpy potrebbe fallire.
-echo [INFO] Se fallisce, il backend si avviera' comunque in MODALITA' FALLBACK.
-pip install -r requirements-tts.txt
-if errorlevel 1 (
-    echo.
-    echo ==========================================================
-    echo [WARNING] Installazione dipendenze Kokoro TTS fallita.
-    echo [WARNING] Il backend funzionera' in MODALITA' FALLBACK (solo testo + bip audio).
-    echo ==========================================================
-    echo.
-) else (
-    echo [OK] Dipendenze TTS verificate con successo.
-    echo.
-)
+:: 3b. Nota sulle dipendenze TTS (Kokoro)
+echo [INFO] Servizio TTS (Kokoro) disattivato di default per evitare errori di compilazione spacy su Python 3.14.
+echo [INFO] Il backend si avviera' in MODALITA' FALLBACK (sintesi sinusoidale interna).
+echo.
 
 :: 4. Avvio di Uvicorn
 echo [INFO] Avvio del server Uvicorn su http://127.0.0.1:8000 ...

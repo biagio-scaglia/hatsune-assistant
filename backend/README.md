@@ -19,22 +19,25 @@ Questo è il backend di servizio in Python (FastAPI) per **Hatsune Assistant**. 
 
 ---
 
-## Integrazione Kokoro TTS Locale
+## Integrazione Kokoro TTS Locale (Opzionale)
 
-Il backend supporta la sintesi vocale asincrona locale tramite **Kokoro TTS** (modello da 82M parametri ad altissima qualità).
+Il backend supporta la sintesi vocale locale di alta qualità tramite la libreria **Kokoro TTS**. Tuttavia, a causa delle dipendenze di compilazione C++ (come `spacy`) e della compatibilità di Python 3.14+ su Windows, il servizio Kokoro reale è **disattivato di default** per garantire un avvio privo di errori.
 
-### 1. Installazione automatica delle dipendenze audio
-Per attivare il TTS locale, installa le dipendenze aggiuntive incluse nel file `requirements.txt`:
-```bash
-pip install -r requirements.txt
-```
+### 1. Avvio Rapido (Modalità Fallback - Predefinita)
+All'avvio tramite `start.bat`, il backend si avvierà automaticamente in **Modalità Fallback (sintesi sinusoidale interna)**:
+- **Nessuna dipendenza pesante da installare**: non richiede compilatori C++, CUDA, PyTorch o pacchetti esterni.
+- **Funziona al 100% su qualsiasi versione di Python (compreso Python 3.14+)**.
+- **Genera file WAV reali**: produce dei segnali sinusoidali cyber modulati in frequenza in base alla lunghezza del testo. Questo consente al client Flutter di ricevere comunque gli URL audio, simulando perfettamente il parlato e testando l'animazione di Miku senza errori di build.
 
-### 2. Modelli e File delle Voci (Kokoro automatico)
-La libreria `kokoro` scaricherà automaticamente il checkpoint ONNX (`kokoro-v0_19.onnx`) e il dizionario delle voci (`voices.json`) al primo avvio all'interno della cache utente (es. in `~/.num2words` o cartelle cache di Hugging Face).
-
-### 3. Modalità Fallback (Senza configurazione hardware)
-Se non hai una GPU CUDA pronta o riscontri problemi nell'installazione delle librerie native di PyTorch/ONNX, il backend **non andrà in errore**. 
-Il sistema si avvierà automaticamente in **modalità Fallback (Beep sinusoidale)**, generando file WAV validi contenenti impulsi acustici cyber con inviluppo e modulazione. Questo garantisce che gli endpoint `/tts` e `/chat-with-tts` rimangano operativi al 100% per testare il flusso UI su Flutter.
+### 2. Abilitare Kokoro TTS Reale (Opzionale)
+Se desideri attivare la sintesi vocale reale generata da Kokoro TTS locale:
+1. Assicurati di utilizzare una versione di Python supportata (consigliato **Python 3.10 - 3.13**).
+2. Installa le dipendenze aggiuntive:
+   ```bash
+   pip install -r requirements-tts.txt
+   ```
+   *(Nota: Se riscontri errori di build su Windows per `spacy`, dovrai installare i build tools di Visual Studio C++ sul tuo PC).*
+3. Al primo utilizzo di Kokoro, la libreria scaricherà automaticamente il modello ONNX (`kokoro-v0_19.onnx`) e le voci in locale.
 
 ---
 

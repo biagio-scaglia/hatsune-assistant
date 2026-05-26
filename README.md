@@ -74,7 +74,16 @@ ollama run llama3
 ```
 
 ### 2. Avvia il Backend Python (FastAPI)
-Entra nella cartella `backend`, crea un ambiente virtuale ed avvia il server di sviluppo:
+Entra nella cartella `backend`, crea un ambiente virtuale ed avvia il server di sviluppo.
+
+**Su Windows (Rapido):**
+Puoi fare doppio clic o avviare lo script `start.bat` dalla cartella `backend`:
+```powershell
+cd backend
+.\start.bat
+```
+
+**Esecuzione Manuale (Tutte le piattaforme):**
 ```bash
 cd backend
 python -m venv venv
