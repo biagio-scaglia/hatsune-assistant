@@ -37,107 +37,109 @@ class ChatMessageBubble extends StatelessWidget {
           ],
 
           // Bolla di testo vera e propria
-          GestureDetector(
-            onLongPress: () {
-              Clipboard.setData(ClipboardData(text: text));
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Messaggio copiato negli appunti!'),
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.8),
-                  duration: const Duration(seconds: 2),
+          Flexible(
+            child: GestureDetector(
+              onLongPress: () {
+                Clipboard.setData(ClipboardData(text: text));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Messaggio copiato negli appunti!'),
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.8),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              },
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: maxBubbleWidth,
                 ),
-              );
-            },
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: maxBubbleWidth,
-              ),
-              decoration: BoxDecoration(
-                color: isUser
-                    ? AppColors.primary.withValues(alpha: 0.1)
-                    : AppColors.surface,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(AppRadius.md),
-                  topRight: const Radius.circular(AppRadius.md),
-                  bottomLeft: isUser ? const Radius.circular(AppRadius.md) : Radius.zero,
-                  bottomRight: isUser ? Radius.zero : const Radius.circular(AppRadius.md),
-                ),
-                border: Border.all(
+                decoration: BoxDecoration(
                   color: isUser
-                      ? AppColors.primary.withValues(alpha: 0.35)
-                      : AppColors.border,
-                  width: 1.0,
-                ),
-                boxShadow: [
-                  if (isUser)
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(AppRadius.md),
-                  topRight: const Radius.circular(AppRadius.md),
-                  bottomLeft: isUser ? const Radius.circular(AppRadius.md) : Radius.zero,
-                  bottomRight: isUser ? Radius.zero : const Radius.circular(AppRadius.md),
-                ),
-                child: IntrinsicWidth(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Riga d'accento decorativa cyberpunk a sinistra per Miku
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (!isUser)
-                            Container(
-                              width: 3.5,
-                              height: 38,
-                              decoration: const BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [AppColors.primary, AppColors.secondary],
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                ),
-                              ),
-                            ),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                              child: SelectableText(
-                                text,
-                                style: GoogleFonts.inter(
-                                  fontSize: 14.5,
-                                  height: 1.45,
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                      ? AppColors.primary.withValues(alpha: 0.1)
+                      : AppColors.surface,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(AppRadius.md),
+                    topRight: const Radius.circular(AppRadius.md),
+                    bottomLeft: isUser ? const Radius.circular(AppRadius.md) : Radius.zero,
+                    bottomRight: isUser ? Radius.zero : const Radius.circular(AppRadius.md),
+                  ),
+                  border: Border.all(
+                    color: isUser
+                        ? AppColors.primary.withValues(alpha: 0.35)
+                        : AppColors.border,
+                    width: 1.0,
+                  ),
+                  boxShadow: [
+                    if (isUser)
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        spreadRadius: 1,
                       ),
-                      
-                      // Timestamp e feedback copia
-                      Padding(
-                        padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(AppRadius.md),
+                    topRight: const Radius.circular(AppRadius.md),
+                    bottomLeft: isUser ? const Radius.circular(AppRadius.md) : Radius.zero,
+                    bottomRight: isUser ? Radius.zero : const Radius.circular(AppRadius.md),
+                  ),
+                  child: IntrinsicWidth(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Riga d'accento decorativa cyberpunk a sinistra per Miku
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              time,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppColors.textMuted,
-                                    fontSize: 10,
+                            if (!isUser)
+                              Container(
+                                width: 3.5,
+                                height: 38,
+                                decoration: const BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [AppColors.primary, AppColors.secondary],
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
                                   ),
+                                ),
+                              ),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                                child: SelectableText(
+                                  text,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14.5,
+                                    height: 1.45,
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                        
+                        // Timestamp e feedback copia
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Text(
+                                time,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppColors.textMuted,
+                                      fontSize: 10,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

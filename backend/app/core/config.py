@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     # Impostazioni TTS Locale
     TTS_PROVIDER: str = "piper"
-    TTS_DEFAULT_VOICE: str = "it_IT-riccardo-x_low"
+    TTS_DEFAULT_VOICE: str = "it_IT-paola-medium"
     TTS_DEFAULT_SPEED: float = 1.0
     TTS_DEFAULT_LANG: str = "it"
     PIPER_MODEL_PATH: Optional[str] = None
