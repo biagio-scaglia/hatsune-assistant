@@ -92,7 +92,7 @@ class ConversationMemoryService:
         # Accoda il task in Celery per rinfrescare il summary in background (include tutti i messaggi)
         self._trigger_summary_update(ollama_messages, conversation_id, model)
         
-        return optimized
+        return optimized_list
 
     def _trigger_summary_update(self, all_messages: List[Dict[str, str]], conversation_id: str, model: str):
         """
