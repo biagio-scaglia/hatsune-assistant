@@ -62,6 +62,9 @@ class VoiceCallController extends ChangeNotifier {
 
     try {
       _errorMessage = null;
+      _lastTranscript = "";
+      _lastResponse = "";
+      notifyListeners();
       await _playbackService.stop(); // Interrompi audio precedente se attivo
       
       await _recorderService.startRecording();
@@ -93,6 +96,29 @@ class VoiceCallController extends ChangeNotifier {
       debugPrint('[VoiceCallController] Errore arresto e invio registrazione: $e');
       _errorMessage = 'Errore di elaborazione vocale: ${e.toString()}';
       _setState(CallState.error);
+      assistantState.setMikuState(MikuState.idle);
+    }
+  }
+
+  /// Annulla la registrazione corrente senza inviare dati al backend
+  Future<void> cancelRecording() async {
+    if (_state != CallState.listening) return;
+
+    try {
+      final path = await _recorderService.stopRecording();
+      if (path != null && !kIsWeb) {
+        final file = File(path);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      }
+      _lastTranscript = "";
+      _lastResponse = "";
+      _setState(CallState.idle);
+      assistantState.setMikuState(MikuState.idle);
+    } catch (e) {
+      debugPrint('[VoiceCallController] Errore annullamento registrazione: $e');
+      _setState(CallState.idle);
       assistantState.setMikuState(MikuState.idle);
     }
   }

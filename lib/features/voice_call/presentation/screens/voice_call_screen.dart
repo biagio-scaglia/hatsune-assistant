@@ -26,7 +26,6 @@ class VoiceCallScreen extends StatefulWidget {
 
 class _VoiceCallScreenState extends State<VoiceCallScreen> {
   late VoiceCallController _controller;
-  bool _isTapToTalkMode = true; // Modalità predefinita: Tap-to-Talk
   Timer? _timer;
   String _elapsedTimeString = "00:00";
 
@@ -184,23 +183,60 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                               isUser: false,
                             ),
                           ],
-                          if (_controller.lastTranscript.isEmpty && _controller.lastResponse.isEmpty)
-                            Center(
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: AppSpacing.xl),
-                                child: Text(
-                                  _controller.state == CallState.error
-                                      ? "C'è stato un problema di rete o di permessi."
-                                      : "Avvia il microfono e parla con Miku!",
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: AppColors.textMuted,
-                                    fontSize: 14,
-                                    fontStyle: FontStyle.italic,
+                          if (_controller.lastTranscript.isEmpty && _controller.lastResponse.isEmpty) ...[
+                            if (_controller.state == CallState.listening) ...[
+                              _buildTranscriptBubble(
+                                sender: 'Tu',
+                                text: '🎙️ Sto ascoltando... parla ora.',
+                                isUser: true,
+                                isTemporary: true,
+                              ),
+                            ] else if (_controller.state == CallState.thinking) ...[
+                              _buildTranscriptBubble(
+                                sender: 'Tu',
+                                text: '🎤 Audio registrato ed inviato al backend...',
+                                isUser: true,
+                                isTemporary: true,
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              _buildTranscriptBubble(
+                                sender: 'Miku',
+                                text: '⚡ Trascrizione ed elaborazione della risposta...',
+                                isUser: false,
+                                isTemporary: true,
+                              ),
+                            ] else if (_controller.state == CallState.error) ...[
+                              Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: AppSpacing.xl),
+                                  child: Text(
+                                    _controller.errorMessage ?? "C'è stato un problema di rete o di permessi.",
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: AppColors.error,
+                                      fontSize: 14,
+                                      fontStyle: FontStyle.italic,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
+                            ] else ...[
+                              Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: AppSpacing.xl),
+                                  child: Text(
+                                    "Tocca 'Avvia Registrazione' e parla con Miku!",
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: AppColors.textMuted,
+                                      fontSize: 14,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ],
                       ),
                     ),
@@ -214,55 +250,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                 ),
                 const SizedBox(height: AppSpacing.md),
 
-                // Selettore della modalità di interazione (PTT vs Tap-to-Talk)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ChoiceChip(
-                      label: const Text('Tocca per Parlare'),
-                      selected: _isTapToTalkMode,
-                      selectedColor: AppColors.primary.withValues(alpha: 0.2),
-                      side: BorderSide(
-                        color: _isTapToTalkMode ? AppColors.primary : AppColors.border,
-                      ),
-                      labelStyle: TextStyle(
-                        color: _isTapToTalkMode ? AppColors.primary : AppColors.textSecondary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                      onSelected: (selected) {
-                        if (selected && _controller.state == CallState.idle) {
-                          setState(() => _isTapToTalkMode = true);
-                        }
-                      },
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    ChoiceChip(
-                      label: const Text('Tieni Premuto (PTT)'),
-                      selected: !_isTapToTalkMode,
-                      selectedColor: AppColors.primary.withValues(alpha: 0.2),
-                      side: BorderSide(
-                        color: !_isTapToTalkMode ? AppColors.primary : AppColors.border,
-                      ),
-                      labelStyle: TextStyle(
-                        color: !_isTapToTalkMode ? AppColors.primary : AppColors.textSecondary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                      onSelected: (selected) {
-                        if (selected && _controller.state == CallState.idle) {
-                          setState(() => _isTapToTalkMode = false);
-                        }
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-
-                // Area Pulsante Principale di chiamata
+                // Area Pulsanti di controllo chiamata
                 Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                  child: _buildMicButton(),
+                  child: _buildControlPanel(),
                 ),
               ],
             ),
@@ -276,6 +267,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     required String sender,
     required String text,
     required bool isUser,
+    bool isTemporary = false,
   }) {
     return Column(
       crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -299,8 +291,8 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: isUser
-                ? AppColors.primary.withValues(alpha: 0.1)
-                : AppColors.surfaceElevated,
+                ? AppColors.primary.withValues(alpha: isTemporary ? 0.05 : 0.1)
+                : AppColors.surfaceElevated.withValues(alpha: isTemporary ? 0.5 : 1.0),
             borderRadius: BorderRadius.only(
               topLeft: const Radius.circular(12),
               topRight: const Radius.circular(12),
@@ -309,16 +301,17 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
             ),
             border: Border.all(
               color: isUser
-                  ? AppColors.primary.withValues(alpha: 0.2)
-                  : AppColors.border,
+                  ? AppColors.primary.withValues(alpha: isTemporary ? 0.1 : 0.2)
+                  : AppColors.border.withValues(alpha: isTemporary ? 0.5 : 1.0),
             ),
           ),
           child: Text(
             text,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: isTemporary ? AppColors.textSecondary : AppColors.textPrimary,
               fontSize: 14,
               height: 1.3,
+              fontStyle: isTemporary ? FontStyle.italic : FontStyle.normal,
             ),
           ),
         ),
@@ -326,88 +319,137 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     );
   }
 
-  Widget _buildMicButton() {
+  Widget _buildControlPanel() {
     final state = _controller.state;
 
-    // Gestione gesti differenziata in base alla modalità
-    if (_isTapToTalkMode) {
-      return GestureDetector(
-        onTap: () {
-          if (state == CallState.idle || state == CallState.error) {
-            _controller.startRecording();
-          } else if (state == CallState.listening) {
-            _controller.stopRecordingAndSend();
-          }
-        },
-        child: _buildButtonBody(),
-      );
-    } else {
-      // Modalità Push-to-Talk (PTT)
-      return GestureDetector(
-        onLongPressStart: (_) {
-          if (state == CallState.idle || state == CallState.error) {
-            _controller.startRecording();
-          }
-        },
-        onLongPressEnd: (_) {
-          if (state == CallState.listening) {
-            _controller.stopRecordingAndSend();
-          }
-        },
-        child: _buildButtonBody(),
-      );
-    }
-  }
+    switch (state) {
+      case CallState.idle:
+        return _buildLargeButton(
+          label: 'AVVIA REGISTRAZIONE',
+          icon: Icons.mic,
+          color: AppColors.primary,
+          onTap: () => _controller.startRecording(),
+        );
 
-  Widget _buildButtonBody() {
-    final state = _controller.state;
-    final isListening = state == CallState.listening;
-    final isThinking = state == CallState.thinking;
+      case CallState.listening:
+        return Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: _buildLargeButton(
+                label: 'FERMA E INVIA',
+                icon: Icons.send,
+                color: AppColors.success,
+                onTap: () => _controller.stopRecordingAndSend(),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              flex: 1,
+              child: _buildLargeButton(
+                label: 'ANNULLA',
+                icon: Icons.close,
+                color: AppColors.error,
+                onTap: () => _controller.cancelRecording(),
+              ),
+            ),
+          ],
+        );
 
-    Color buttonColor = AppColors.primary;
-    IconData icon = Icons.mic;
-    
-    if (isListening) {
-      buttonColor = AppColors.error;
-      icon = Icons.mic_off;
-    } else if (isThinking) {
-      buttonColor = AppColors.secondary;
-      icon = Icons.hourglass_empty;
-    } else if (state == CallState.error) {
-      buttonColor = AppColors.error;
-      icon = Icons.refresh;
-    }
-
-    return Container(
-      width: 76,
-      height: 76,
-      decoration: BoxDecoration(
-        color: buttonColor.withValues(alpha: 0.15),
-        shape: BoxShape.circle,
-        border: Border.all(color: buttonColor, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: buttonColor.withValues(alpha: 0.3),
-            blurRadius: 12,
-            spreadRadius: 2,
+      case CallState.thinking:
+        return Container(
+          width: double.infinity,
+          height: 60,
+          decoration: BoxDecoration(
+            color: AppColors.secondary.withValues(alpha: 0.1),
+            borderRadius: AppRadius.borderRadiusMd,
+            border: Border.all(color: AppColors.secondary.withValues(alpha: 0.3)),
           ),
-        ],
-      ),
-      child: Center(
-        child: isThinking
-            ? SizedBox(
-                width: 24,
-                height: 24,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   valueColor: AlwaysStoppedAnimation<Color>(AppColors.secondary),
                 ),
-              )
-            : Icon(
-                icon,
-                color: buttonColor,
-                size: 32,
               ),
+              const SizedBox(width: 12),
+              Text(
+                'ELABORAZIONE IN CORSO...',
+                style: GoogleFonts.rajdhani(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.secondary,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case CallState.talking:
+        return _buildLargeButton(
+          label: 'INTERROMPI MIKU',
+          icon: Icons.volume_off,
+          color: AppColors.error,
+          onTap: () => _controller.endSession(),
+        );
+
+      case CallState.error:
+        return _buildLargeButton(
+          label: 'RIPROVA',
+          icon: Icons.refresh,
+          color: AppColors.primary,
+          onTap: () => _controller.startSession(),
+        );
+    }
+  }
+
+  Widget _buildLargeButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.borderRadiusMd,
+        child: Container(
+          height: 60,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: AppRadius.borderRadiusMd,
+            border: Border.all(color: color, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.2),
+                blurRadius: 8,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(width: 10),
+              Text(
+                label,
+                style: GoogleFonts.rajdhani(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -430,13 +472,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   String _getStatusSubtitle() {
     switch (_controller.state) {
       case CallState.idle:
-        return _isTapToTalkMode
-            ? "Tocca il microfono per parlare"
-            : "Tieni premuto il microfono per parlare";
+        return "Tocca 'Avvia Registrazione' per parlare con Miku";
       case CallState.listening:
-        return _isTapToTalkMode
-            ? "Tocca di nuovo per inviare"
-            : "Rilascia per inviare l'audio";
+        return "Parla liberamente. Quando hai finito, tocca 'Ferma e Invia'";
       case CallState.thinking:
         return "Whisper e Ollama stanno lavorando...";
       case CallState.talking:
