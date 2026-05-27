@@ -104,7 +104,23 @@ class VoiceCallController extends ChangeNotifier {
       final request = http.MultipartRequest('POST', url);
 
       // Aggiungi file audio
-      request.files.add(await http.MultipartFile.fromPath('file', filePath));
+      List<int> bytes;
+      String filename = 'audio.wav';
+
+      if (kIsWeb) {
+        // Legge i byte dal Blob URL della registrazione in memoria nel browser
+        final response = await http.get(Uri.parse(filePath));
+        bytes = response.bodyBytes;
+      } else {
+        bytes = await File(filePath).readAsBytes();
+        filename = filePath.replaceAll('\\', '/').split('/').last;
+      }
+
+      request.files.add(http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: filename,
+      ));
 
       // Aggiungi parametri form-data opzionali
       if (_conversationId != null) {
@@ -163,13 +179,15 @@ class VoiceCallController extends ChangeNotifier {
       _setState(CallState.error);
       assistantState.setMikuState(MikuState.idle);
     } finally {
-      // Cancella il file locale registrato per non occupare spazio disco inutilmente
-      final file = File(filePath);
-      if (await file.exists()) {
-        try {
-          await file.delete();
-        } catch (e) {
-          debugPrint('[VoiceCallController] Impossibile eliminare il file temporaneo locale: $e');
+      if (!kIsWeb) {
+        // Cancella il file locale registrato per non occupare spazio disco inutilmente
+        final file = File(filePath);
+        if (await file.exists()) {
+          try {
+            await file.delete();
+          } catch (e) {
+            debugPrint('[VoiceCallController] Impossibile eliminare il file temporaneo locale: $e');
+          }
         }
       }
     }

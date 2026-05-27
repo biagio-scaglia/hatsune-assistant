@@ -32,9 +32,14 @@ class VoiceRecorderService {
     }
 
     try {
-      final tempDir = await getTemporaryDirectory();
-      final fileName = 'voice_input_${DateTime.now().millisecondsSinceEpoch}.wav';
-      final filePath = p.join(tempDir.path, fileName);
+      String filePath;
+      if (kIsWeb) {
+        filePath = '';
+      } else {
+        final tempDir = await getTemporaryDirectory();
+        final fileName = 'voice_input_${DateTime.now().millisecondsSinceEpoch}.wav';
+        filePath = p.join(tempDir.path, fileName);
+      }
 
       debugPrint('[VoiceRecorderService] Avvio registrazione su: $filePath');
       

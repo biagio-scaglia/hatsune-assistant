@@ -34,7 +34,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   void initState() {
     super.initState();
     _controller = VoiceCallController(assistantState: widget.state);
-    _controller.startSession();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.startSession();
+    });
     _startTimer();
   }
 
@@ -99,28 +101,31 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _getStatusTitle(),
-                            style: GoogleFonts.rajdhani(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: _getStatusColor(),
-                              letterSpacing: 0.5,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _getStatusTitle(),
+                              style: GoogleFonts.rajdhani(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: _getStatusColor(),
+                                letterSpacing: 0.5,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _getStatusSubtitle(),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
+                            const SizedBox(height: 4),
+                            Text(
+                              _getStatusSubtitle(),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: AppSpacing.md),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
