@@ -1,5 +1,9 @@
 # Hatsune Assistant
 
+<p align="center">
+  <img src="assets/logo.png" alt="Hatsune Assistant Logo" width="250" />
+</p>
+
 Un assistente alla programmazione interattivo sviluppato in Flutter, con Hatsune Miku come presenza 3D animata collegata a un backend asincrono in Python (FastAPI) connesso a modelli LLM Ollama locali/Cloud, con persistenza dati PostgreSQL, cache Redis, code asincrone Celery e sintesi vocale locale Piper TTS.
 
 Realizzato da biagigio.
