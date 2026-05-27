@@ -22,6 +22,7 @@ class Miku3DViewer extends StatelessWidget {
         return 'assets/models/talking.glb';
       case MikuState.victory:
         return 'assets/models/victory.glb';
+      case MikuState.listening:
       case MikuState.idle:
         return 'assets/models/idle.glb';
     }
@@ -115,6 +116,9 @@ class Miku3DViewer extends StatelessWidget {
       case MikuState.victory:
         indicatorColor = AppColors.success;
         break;
+      case MikuState.listening:
+        indicatorColor = AppColors.primaryLight;
+        break;
       case MikuState.idle:
         indicatorColor = AppColors.textMuted;
         break;
@@ -145,6 +149,8 @@ class Miku3DViewer extends StatelessWidget {
         return 'Talking';
       case MikuState.victory:
         return 'Victory! ✨';
+      case MikuState.listening:
+        return 'Listening...';
       case MikuState.idle:
         return 'Idle';
     }

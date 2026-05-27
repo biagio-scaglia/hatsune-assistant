@@ -11,6 +11,7 @@ import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/models/presentation/screens/models_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../features/voice_call/presentation/screens/voice_call_screen.dart';
 
 /// La Shell dell'app. Gestisce il cambio schermata principale e adatta
 /// il layout tra Bottom Navigation Bar (Mobile) e Navigation Rail (Tablet/Desktop).
@@ -41,6 +42,7 @@ class _AppShellState extends State<AppShell> {
     final List<Widget> screens = [
       HomeScreen(state: widget.state),
       ChatScreen(state: widget.state),
+      VoiceCallScreen(state: widget.state),
       ModelsScreen(state: widget.state),
       SettingsScreen(state: widget.state),
     ];
@@ -130,6 +132,11 @@ class _AppShellState extends State<AppShell> {
                             label: Text('Chat'),
                           ),
                           NavigationRailDestination(
+                            icon: Icon(Icons.phone_in_talk_outlined),
+                            selectedIcon: Icon(Icons.phone_in_talk),
+                            label: Text('Call'),
+                          ),
+                          NavigationRailDestination(
                             icon: Icon(Icons.dns_outlined),
                             selectedIcon: Icon(Icons.dns),
                             label: Text('Models'),
@@ -179,6 +186,11 @@ class _AppShellState extends State<AppShell> {
                       icon: Icon(Icons.chat_bubble_outline),
                       selectedIcon: Icon(Icons.chat_bubble),
                       label: 'Chat',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.phone_in_talk_outlined),
+                      selectedIcon: Icon(Icons.phone_in_talk),
+                      label: 'Call',
                     ),
                     NavigationDestination(
                       icon: Icon(Icons.dns_outlined),

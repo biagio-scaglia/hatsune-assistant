@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     # Impostazioni Database PostgreSQL
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/hatsune_assistant"
 
+    # Impostazioni Speech-to-Text (STT) Whisper
+    STT_MODEL_SIZE: str = "base"
+    STT_DEVICE: str = "auto"
+    STT_COMPUTE_TYPE: str = "int8"
+    STT_DEFAULT_LANGUAGE: str = "it"
+    STT_BEAM_SIZE: int = 5
+    STT_MODEL_PATH: Optional[str] = None
 
     # Impostazioni di Hardening & Timeout
     REQUEST_TIMEOUT_SECONDS: float = 60.0

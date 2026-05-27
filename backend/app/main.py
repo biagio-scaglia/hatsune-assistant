@@ -7,7 +7,7 @@ from .core.logging import setup_logging
 from .core.exceptions import register_exception_handlers
 from .core.rate_limit import limiter
 from .core.middleware import TracingMiddleware
-from .api import routes_health, routes_models, routes_chat, routes_tts, routes_conversations
+from .api import routes_health, routes_models, routes_chat, routes_tts, routes_conversations, routes_voice
 
 
 # Configura il logging all'avvio
@@ -53,6 +53,7 @@ app.include_router(routes_models.router, prefix="/api/v1", tags=["Models"])
 app.include_router(routes_chat.router, prefix="/api/v1", tags=["Chat"])
 app.include_router(routes_tts.router, prefix="/api/v1", tags=["TTS"])
 app.include_router(routes_conversations.router, prefix="/api/v1", tags=["Conversations"])
+app.include_router(routes_voice.router, prefix="/api/v1", tags=["Voice"])
 
 @app.get("/")
 async def root():

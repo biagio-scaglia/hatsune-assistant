@@ -8,9 +8,10 @@ ENV PYTHONUNBUFFERED=1
 # Imposta la directory di lavoro in /app
 WORKDIR /app
 
-# Installa le dipendenze di sistema richieste (ad esempio curl per l'healthcheck)
+# Installa le dipendenze di sistema richieste (ad esempio curl per l'healthcheck, ffmpeg per Whisper)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Copia i file delle dipendenze

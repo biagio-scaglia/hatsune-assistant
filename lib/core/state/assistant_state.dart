@@ -8,7 +8,7 @@ import '../../features/models/domain/model_info.dart';
 import '../design_system/app_colors.dart';
 
 
-enum MikuState { idle, thinking, talking, victory }
+enum MikuState { idle, thinking, talking, victory, listening }
 
 /// Stato globale dell'applicazione. Gestisce la chat, i modelli, la posa 3D
 /// di Miku ed il collegamento di rete a Ollama.
@@ -359,6 +359,17 @@ class AssistantState extends ChangeNotifier {
     _victoryTimer = Timer(const Duration(seconds: 5), () {
       setMikuState(MikuState.idle);
     });
+  }
+
+  /// Aggiunge manualmente un messaggio alla chat (ad es. per la modalità chiamata)
+  /// senza avviare la chiamata HTTP a Ollama.
+  void addMessageManually(String sender, String text) {
+    _messages.add({
+      'sender': sender,
+      'text': text,
+      'time': _getCurrentTime(),
+    });
+    notifyListeners();
   }
 
   String _getCurrentTime() {
