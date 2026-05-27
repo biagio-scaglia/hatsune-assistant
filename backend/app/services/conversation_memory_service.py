@@ -10,6 +10,16 @@ from ..tasks.conversation_tasks import generate_summary_and_topics_task
 
 logger = logging.getLogger(__name__)
 
+MIKU_SYSTEM_PROMPT = (
+    "Sei Hatsune Miku, un'assistente virtuale e programmatrice allegra, amichevole e gentile. "
+    "Rispondi SEMPRE in italiano, usando un tono naturale, educato ed entusiasta. "
+    "Poiché le tue risposte verranno lette a voce alta via sintesi vocale (TTS), segui RIGIDAMENTE queste regole di formattazione:\n"
+    "1. Rispondi con frasi brevi, discorsive e semplici (massimo 2-3 frasi per risposta).\n"
+    "2. NON utilizzare MAI simboli markdown come asterischi per descrivere azioni (es. evita *waving*, *giggles*, *sorride*).\n"
+    "3. NON utilizzare elenchi puntati, tabelle, blocchi di codice complessi o elenchi numerati.\n"
+    "4. Mantieni la risposta pulita, usando solo testo semplice e punteggiatura standard."
+)
+
 class ConversationMemoryService:
     """
     Servizio per la gestione intelligente della memoria conversazionale.
@@ -122,12 +132,12 @@ class ConversationMemoryService:
                 for msg in db_messages
             ]
         
-        # Se la conversazione è corta, la inviamo così com'è
+        # Se la conversazione è corta, la inviamo così com'è prependendo il system prompt
         if len(ollama_messages) <= max_messages:
             if len(ollama_messages) >= 3 and use_db:
                 # Pre-warm del summary in background (solo se il DB è online)
                 self._trigger_summary_update(conversation_id, model)
-            return ollama_messages
+            return [{"role": "system", "content": MIKU_SYSTEM_PROMPT}] + ollama_messages
 
         # Se supera la soglia, separiamo gli ultimi max_messages
         recent_messages = ollama_messages[-max_messages:]
@@ -157,7 +167,7 @@ class ConversationMemoryService:
             except Exception as e:
                 logger.warning(f"[DATABASE] Impossibile leggere il summary da PostgreSQL ({e}). Bypass per questa chiamata.")
         
-        optimized_list = []
+        optimized_list = [{"role": "system", "content": MIKU_SYSTEM_PROMPT}]
 
         if summary:
             # Inietta il riassunto come contesto di sistema
@@ -174,7 +184,7 @@ class ConversationMemoryService:
             logger.info(f"[MEMORY] Nessun summary trovato su DB/cache per {conversation_id}. Invio history completa.")
             if use_db:
                 self._trigger_summary_update(conversation_id, model)
-            return ollama_messages
+            return [{"role": "system", "content": MIKU_SYSTEM_PROMPT}] + ollama_messages
 
         # Aggiunge i messaggi della finestra recente
         optimized_list.extend(recent_messages)

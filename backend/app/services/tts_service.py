@@ -73,10 +73,14 @@ class TTSService(BaseTTSService):
 
     def _resolve_piper_exe(self) -> Optional[str]:
         """
-        Trova il percorso locale dell'eseguibile piper.exe
+        Trova il percorso locale dell'eseguibile piper (piper.exe su Windows, piper su Linux)
         """
-        path_extracted = os.path.join(BIN_DIR, "piper", "piper.exe")
-        path_flat = os.path.join(BIN_DIR, "piper.exe")
+        if os.name == 'nt':
+            path_extracted = os.path.join(BIN_DIR, "piper", "piper.exe")
+            path_flat = os.path.join(BIN_DIR, "piper.exe")
+        else:
+            path_extracted = os.path.join(BIN_DIR, "piper", "piper")
+            path_flat = os.path.join(BIN_DIR, "piper")
         
         if os.path.exists(path_extracted):
             return path_extracted
@@ -148,31 +152,64 @@ class TTSService(BaseTTSService):
             logger.error(f"[TTS] Estrazione fallita: {e}")
             raise e
 
+    def _extract_tar(self, tar_path: str, extract_to: str):
+        """
+        Estrae un file tar.gz in una cartella locale.
+        """
+        logger.info(f"[TTS] Estrazione tar: {tar_path} -> {extract_to}")
+        try:
+            import tarfile
+            with tarfile.open(tar_path, 'r:gz') as tar_ref:
+                tar_ref.extractall(extract_to)
+            logger.info("[TTS] Estrazione tar completata con successo.")
+        except Exception as e:
+            logger.error(f"[TTS] Estrazione tar fallita: {e}")
+            raise e
+
     def _initialize_assets_sync(self):
         """
         Procedura sincrona di inizializzazione degli asset di Piper eseguita all'avvio.
         """
         self.download_in_progress = True
         try:
-            # 1. Verifica ed eventuale download di piper.exe standalone
+            # 1. Verifica ed eventuale download di piper standalone
             piper_exe = self._resolve_piper_exe()
             if not piper_exe:
-                logger.info("[TTS] Eseguibile piper.exe non trovato. Avvio download di Piper standalone per Windows...")
-                zip_url = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip"
-                zip_path = os.path.join(BIN_DIR, "piper_windows_amd64.zip")
-                
-                self._download_file(zip_url, zip_path)
-                self._extract_zip(zip_path, BIN_DIR)
-                
-                try:
-                    os.remove(zip_path)
-                except OSError:
-                    pass
+                if os.name == 'nt':
+                    logger.info("[TTS] Eseguibile piper.exe non trovato. Avvio download di Piper standalone per Windows...")
+                    zip_url = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip"
+                    zip_path = os.path.join(BIN_DIR, "piper_windows_amd64.zip")
+                    
+                    self._download_file(zip_url, zip_path)
+                    self._extract_zip(zip_path, BIN_DIR)
+                    try:
+                        os.remove(zip_path)
+                    except OSError:
+                        pass
+                else:
+                    logger.info("[TTS] Eseguibile piper non trovato. Avvio download di Piper standalone per Linux...")
+                    tar_url = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz"
+                    tar_path = os.path.join(BIN_DIR, "piper_linux_x86_64.tar.gz")
+                    
+                    self._download_file(tar_url, tar_path)
+                    self._extract_tar(tar_path, BIN_DIR)
+                    try:
+                        os.remove(tar_path)
+                    except OSError:
+                        pass
                 
                 piper_exe = self._resolve_piper_exe()
                 if not piper_exe:
-                    raise FileNotFoundError("piper.exe non e' presente dopo l'estrazione dello zip.")
+                    raise FileNotFoundError("L'eseguibile di Piper non e' presente dopo l'estrazione degli archivi.")
             
+            # Se siamo su Linux/Unix, assicuriamo i permessi chmod +x
+            if piper_exe and os.name != 'nt':
+                try:
+                    os.chmod(piper_exe, 0o755)
+                    logger.info(f"[TTS] Permessi di esecuzione impostati (+x) su: {piper_exe}")
+                except Exception as ex:
+                    logger.warning(f"[TTS] Impossibile impostare i permessi chmod su {piper_exe}: {ex}")
+
             # 2. Verifica ed eventuale download del modello vocale di default
             default_voice = settings.TTS_DEFAULT_VOICE
             self._ensure_voice_model_sync(default_voice)
@@ -181,7 +218,7 @@ class TTSService(BaseTTSService):
             logger.info(f"[TTS] Piper TTS pronto per la sintesi. Eseguibile: {piper_exe}")
         except Exception as e:
             self.download_error = str(e)
-            logger.error(f"[TTS] Inizializzazione Piper TTS fallita ({e}). Verra' utilizzata la modalita' Fallback (beep).")
+            logger.error(f"[TTS] Inizializzazione Piper TTS fallita ({e}).")
         finally:
             self.download_in_progress = False
 
@@ -250,15 +287,12 @@ class TTSService(BaseTTSService):
     ) -> None:
         """
         Esegue la chiamata sincrona all'eseguibile di Piper tramite subprocess.
-        In caso di errori, ripiega sulla generazione di un tono sinusoidale di fallback.
         """
         piper_exe = self._resolve_piper_exe()
         
         if not piper_exe:
-            logger.warning("[TTS] Eseguibile piper.exe non disponibile. Uso il fallback a beep.")
-            self._generate_fallback_wav(filepath, text)
-            self._cleanup_old_files()
-            return
+            logger.error("[TTS] Eseguibile Piper non disponibile.")
+            raise FileNotFoundError("Eseguibile Piper non disponibile.")
             
         try:
             # 1. Assicura che la voce richiesta sia scaricata localmente
@@ -312,8 +346,8 @@ class TTSService(BaseTTSService):
                 raise FileNotFoundError("Il file audio non e' stato creato o risulta vuoto.")
                 
         except Exception as e:
-            logger.error(f"[TTS] Errore durante la sintesi vocale Piper ({e}). Uso fallback sinusoidale.")
-            self._generate_fallback_wav(filepath, text)
+            logger.error(f"[TTS] Errore durante la sintesi vocale Piper ({e}).")
+            raise e
             
         self._cleanup_old_files()
 
