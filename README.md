@@ -112,6 +112,21 @@ Una volta avviato, i servizi saranno disponibili ai seguenti indirizzi:
 
 Il container di FastAPI eseguirà automaticamente l'upgrade del database tramite Alembic all'avvio.
 
+#### Nota Importante per la connessione a Ollama da Docker
+Poiché il backend viene eseguito all'interno di container Docker, la connessione a Ollama (in esecuzione sull'host) richiede l'uso dell'host virtuale `host.docker.internal`. Per fare in modo che Ollama sul computer host accetti le richieste provenienti dalla rete di Docker:
+
+1. Chiudi completamente Ollama dall'area di notifica di Windows (tasto destro sull'icona di Ollama -> Quit).
+2. Configura la variabile d'ambiente `OLLAMA_HOST` impostandola a `0.0.0.0`:
+   - Su Windows (esegui in PowerShell):
+     ```powershell
+     [System.Environment]::SetEnvironmentVariable("OLLAMA_HOST", "0.0.0.0", "User")
+     ```
+   - Su macOS/Linux:
+     ```bash
+     export OLLAMA_HOST=0.0.0.0
+     ```
+3. Riavvia Ollama sul computer.
+
 ---
 
 ### Esecuzione Manuale (Componenti Singoli)
