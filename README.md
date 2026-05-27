@@ -51,6 +51,11 @@ L'avatar 3D cambia posa a seconda dello stato di elaborazione dell'assistente:
 - **Diagnostica e Monitoraggio (`/api/v1/health/diagnostics`)**:
   - Endpoint amministrativo per monitorare in tempo reale lo stato di Redis (connessione, numero e chiavi attive) e di Celery (stato dei worker).
 
+### Modalita Chiamata Vocale (Voice Call)
+- **Pipeline Vocale Unificata (`/api/v1/voice/turn`)**: Un singolo endpoint riceve l'audio dell'utente, esegue lo Speech-to-Text (STT), sincronizza la cronologia su PostgreSQL, ottiene la risposta da Ollama e genera l'audio di Miku con Piper (usando la cache di Redis).
+- **Trascrizione locale con Whisper**: Sfrutta la libreria `faster-whisper` per la trascrizione locale veloce, caricata in memoria in modo asincrono (lazy) e con rilevamento della GPU CUDA se disponibile.
+- **Controlli e Stati 3D**: Schermata cyberpunk in Flutter con supporto per Push-to-Talk (tieni premuto) e Tap-to-Talk (tocca), che controlla in tempo reale gli stati di animazione dell'avatar 3D (idle, listening, thinking, talking).
+
 ### Integrazione Vocale Piper Standalone
 - **Zero installazioni pesanti**: Viene scaricato in background l'eseguibile precompilato ufficiale `piper.exe` per Windows e i modelli ONNX di default al primo avvio.
 - **Gestione Voci e Lingue**: Supporta voci italiane femminili di default (`it_IT-paola-medium`), maschili (`it_IT-riccardo-x_low`) ed inglesi (`en_US-lessac-medium`), scaricate automaticamente su richiesta.
