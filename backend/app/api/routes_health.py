@@ -3,20 +3,20 @@ from ..core.config import settings
 from ..core.rate_limit import limiter
 from ..core.redis_client import redis_client
 from ..schemas.health import HealthResponse
-from ..services.ollama_service import OllamaService
+from ..services.llm_service import LLMService
 from ..services.cache_service import CacheService
 
 router = APIRouter()
-ollama_service = OllamaService()
+llm_service = LLMService()
 
 @router.get("/health", response_model=HealthResponse)
 @limiter.limit(settings.RATE_LIMIT_HEALTH)
 async def health_check(request: Request):
     """
-    Ritorna lo stato del backend e la connettività locale con l'istanza Ollama.
+    Ritorna lo stato del backend e la connettività locale con il provider LLM attivo.
     Risposta memorizzata in cache temporanea per ridurre il carico sul server.
     """
-    cache_key = "ollama:health"
+    cache_key = f"llm:health:{settings.LLM_PROVIDER}"
     cached_health = CacheService.get(cache_key)
     
     if cached_health:
@@ -27,7 +27,7 @@ async def health_check(request: Request):
             environment=settings.APP_ENV
         )
         
-    health_data = await ollama_service.check_health()
+    health_data = await llm_service.check_health()
     
     # Salva in cache per REDIS_HEALTH_TTL_SECONDS
     CacheService.set(cache_key, health_data, ttl=settings.REDIS_HEALTH_TTL_SECONDS)

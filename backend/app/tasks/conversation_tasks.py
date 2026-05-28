@@ -2,7 +2,7 @@ import json
 import logging
 import asyncio
 from ..celery_app import celery_app
-from ..services.ollama_service import OllamaService
+from ..services.llm_service import LLMService
 from ..services.cache_service import CacheService
 from ..core.db import async_session_maker
 from ..db.repositories.conversation_repository import ConversationRepository
@@ -21,7 +21,7 @@ def run_async(coro):
 def generate_summary_and_topics_task(conversation_id: str, model: str):
     """
     Task Celery per generare in background il riassunto e i topic principali di una conversazione.
-    Legge la cronologia da PostgreSQL, chiama Ollama e persiste i risultati sia su DB che su cache Redis.
+    Legge la cronologia da PostgreSQL, chiama il provider LLM attivo e persiste i risultati sia su DB che su cache Redis.
     """
     logger.info(f"[CONV TASK] Inizio elaborazione memoria per conversazione: {conversation_id}")
     
@@ -49,10 +49,10 @@ def generate_summary_and_topics_task(conversation_id: str, model: str):
             )
 
             try:
-                ollama_service = OllamaService()
+                llm_service = LLMService()
                 
-                # Chiama Ollama per riassumere
-                response_data = await ollama_service.chat(
+                # Chiama il servizio LLM per riassumere
+                response_data = await llm_service.chat(
                     model=model,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.2

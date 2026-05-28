@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .stt_service import STTService
 from .tts_service import TTSService, AUDIO_DIR
-from .ollama_service import OllamaService
+from .llm_service import LLMService
 from .conversation_memory_service import conversation_memory_service
 from .cache_service import CacheService
 from ..core.config import settings
@@ -23,7 +23,7 @@ class CallService:
     """
     def __init__(self):
         self.stt_service = STTService()
-        self.ollama_service = OllamaService()
+        self.llm_service = LLMService()
         self.tts_service = TTSService()
 
     async def execute_turn(
@@ -40,7 +40,8 @@ class CallService:
         """
         Esegue un intero turno vocale misurando i tempi di elaborazione per ciascuna fase.
         """
-        start_total = time.time()
+        status_total = time.time()
+        start_total = status_total
         
         active_model = model or settings.DEFAULT_MODEL
         active_voice = voice or settings.TTS_DEFAULT_VOICE
@@ -57,7 +58,7 @@ class CallService:
             logger.error(f"[CALL-VOICE] Fallimento nella trascrizione STT: {e}")
             raise RuntimeError(f"Errore Speech-to-Text: {str(e)}")
         finally:
-            # Pulisce sempre il file audio temporaneo caricato dal client
+            # Pulisce sempre le tracce audio temporanee caricate dal client
             if os.path.exists(temp_audio_path):
                 try:
                     os.remove(temp_audio_path)
@@ -106,8 +107,7 @@ class CallService:
         # Aggiunge il messaggio utente (il testo trascritto) in fondo alla cronologia
         history.append(Message(role="user", content=transcript))
 
-        # Ottimizza la cronologia (applica la sliding window e inietta l'eventuale riassunto storico)
-        # Nota: optimize_history salva automaticamente il nuovo messaggio utente nel DB se è online!
+        # Ottimizza la cronologia (applica la sliding window a blocchi per prompt caching)
         optimized_messages = await conversation_memory_service.optimize_history(
             db=db,
             messages=history,
@@ -115,20 +115,20 @@ class CallService:
             model=active_model
         )
 
-        # --- Fase 3: Generazione Risposta Testuale LLM (Ollama) ---
+        # --- Fase 3: Generazione Risposta Testuale LLM (Attivo) ---
         start_llm = time.time()
         try:
-            response_data = await self.ollama_service.chat(
+            response_data = await self.llm_service.chat(
                 model=active_model,
                 messages=optimized_messages,
                 temperature=active_temp
             )
             assistant_content = response_data.get("message", {}).get("content", "")
             llm_latency = time.time() - start_llm
-            logger.info(f"[CALL-VOICE] Risposta LLM generata in {llm_latency:.2f}s.")
+            logger.info(f"[CALL-VOICE] Risposta LLM ({self.llm_service.provider_name}) generata in {llm_latency:.2f}s.")
         except Exception as e:
             logger.error(f"[CALL-VOICE] Fallimento nella generazione LLM: {e}")
-            raise RuntimeError(f"Errore LLM Ollama: {str(e)}")
+            raise RuntimeError(f"Errore LLM ({self.llm_service.provider_name}): {str(e)}")
 
         # Salva la risposta dell'assistente nel DB o in locale
         if assistant_content.strip():
@@ -140,7 +140,7 @@ class CallService:
                         conversation_id=conversation_id,
                         role="assistant",
                         content=assistant_content,
-                        provider="Ollama (Locale)"
+                        provider=self.llm_service.provider_name
                     )
                     db_saved = True
                 except Exception as e:

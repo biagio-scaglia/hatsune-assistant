@@ -168,3 +168,34 @@ Le API sono disponibili con prefisso `/api/v1/` e documentazione interattiva su 
 - **`POST /chat/stream`**: Endpoint in streaming Server-Sent Events. Ottimizza la cronologia ed accumula progressivamente i token, salvando la risposta dell'assistente nel database Postgres solo a completamento dello streaming.
 - **`POST /tts`**: Genera l'audio Piper TTS. Utilizza la cache Redis per saltare il calcolo C++ e servire file WAV identici pregressi.
 - **`GET /health/diagnostics`**: Espone lo stato di diagnostica ed integrità di Redis (stato, conteggio e anteprima chiavi salvate) e Celery (presenza e identificativi dei worker attivi).
+
+---
+
+## Integrazione llama.cpp Server & Prompt Caching
+
+Il backend supporta sia **Ollama** che **llama.cpp server** come motori LLM locali.
+
+### Abilitazione e Configurazione (.env)
+Per passare a `llama.cpp` come provider principale, imposta le seguenti variabili nel file `.env`:
+```ini
+LLM_PROVIDER=llamacpp
+LLAMACPP_BASE_URL=http://localhost:8080
+LLAMACPP_MODEL_NAME=llama.cpp
+LLAMACPP_DEFAULT_SLOT=-1
+LLAMACPP_CTX_SIZE=4096
+LLAMACPP_USE_CACHE=true
+LLAMACPP_USE_SLOTS=true
+```
+
+### Spiegazione KV Cache & Slot Reuse
+1. **KV Cache (Prompt Caching)**: Quando inviamo una richiesta a llama.cpp, il server elabora i token e ne memorizza lo stato delle matrici di Key/Value (KV). Se la richiesta successiva condivide lo stesso prefisso esatto di token, il server non ha bisogno di ricalcolare quel prefisso, ma calcola solo i nuovi token aggiunti, riducendo la latenza di avvio (Time-to-First-Token) quasi a zero.
+2. **Ottimizzazione del Prompt (Block-wise Context Shifting)**: 
+   Nel nostro backend abbiamo ottimizzato il prompt per sfruttare questa caratteristica:
+   - Il prompt di sistema (`MIKU_SYSTEM_PROMPT`) e il riassunto della cronologia (`summary`) rimangono stabili.
+   - Per evitare che la finestra scorrevole dei messaggi recenti cambi a ogni singolo messaggio (invalidando la KV cache), facciamo slittare la cronologia recente a blocchi (es. a blocchi di 4 messaggi). In questo modo, l'inizio della cronologia rimane fisso per più turni consecutivi, garantendo un hit rate della KV cache altissimo.
+3. **Speculative Decoding**: Se supportato dalla GPU, puoi avviare `llama-server` passando un modello draft veloce (es. un modello da 1B o 0.5B dello stesso tipo del modello target da 8B) usando il flag `-md`. Il server verificherà le predizioni del modello draft in parallelo sul modello target, incrementando sensibilmente la velocità di generazione dei token.
+
+Esempio avvio con speculative decoding:
+```bash
+llama-server -m percorso/modello-target.gguf -md percorso/modello-draft.gguf -c 4096 --port 8080 --slots --flash-attn -ngl 99
+```

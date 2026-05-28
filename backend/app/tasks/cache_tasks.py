@@ -1,7 +1,7 @@
 import logging
 import asyncio
 from ..celery_app import celery_app
-from ..services.ollama_service import OllamaService
+from ..services.llm_service import LLMService
 from ..services.cache_service import CacheService
 from ..core.config import settings
 
@@ -22,17 +22,18 @@ def run_async(coro):
 @celery_app.task(name="app.tasks.cache_tasks.refresh_models_cache_task")
 def refresh_models_cache_task():
     """
-    Task periodico per rinfrescare preventivamente la cache dei modelli Ollama installati localmente.
+    Task periodico per rinfrescare preventivamente la cache dei modelli del provider LLM attivo.
     """
-    logger.info("[CACHE TASK] Avvio aggiornamento automatico della cache modelli Ollama...")
+    logger.info(f"[CACHE TASK] Avvio aggiornamento automatico della cache modelli {settings.LLM_PROVIDER}...")
     try:
-        ollama_service = OllamaService()
-        # Chiamata asincrona al servizio di Ollama
-        models = run_async(ollama_service.fetch_models())
+        llm_service = LLMService()
+        # Chiamata asincrona al servizio LLM
+        models = run_async(llm_service.fetch_models())
         
-        # Aggiorna la cache in Redis
-        CacheService.set("ollama:models", models, ttl=settings.REDIS_MODELS_TTL_SECONDS)
-        logger.info(f"[CACHE TASK] Aggiornamento completato. {len(models)} modelli salvati in cache.")
+        # Aggiorna la cache in Redis usando una chiave specifica per provider
+        cache_key = f"llm:models:{settings.LLM_PROVIDER}"
+        CacheService.set(cache_key, models, ttl=settings.REDIS_MODELS_TTL_SECONDS)
+        logger.info(f"[CACHE TASK] Aggiornamento completato. {len(models)} modelli salvati in cache per {settings.LLM_PROVIDER}.")
     except Exception as e:
         logger.error(f"[CACHE TASK] Errore durante il refresh della cache dei modelli: {e}")
 

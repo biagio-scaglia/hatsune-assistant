@@ -10,6 +10,18 @@ class Settings(BaseSettings):
     DEFAULT_MODEL: str = "llama3:latest"
     APP_ENV: str = "development"
 
+    # Configurazione LLM Provider ('ollama' o 'llamacpp')
+    LLM_PROVIDER: str = "ollama"
+
+    # Configurazione llama.cpp server
+    LLAMACPP_BASE_URL: str = "http://localhost:8080"
+    LLAMACPP_MODEL_NAME: str = "llama.cpp"
+    LLAMACPP_DEFAULT_SLOT: int = -1
+    LLAMACPP_CTX_SIZE: int = 4096
+    LLAMACPP_USE_CACHE: bool = True
+    LLAMACPP_USE_SLOTS: bool = True
+    LLAMACPP_USE_SPECULATIVE_DECODING: bool = False
+
     # Impostazioni TTS Locale
     TTS_PROVIDER: str = "piper"
     TTS_DEFAULT_VOICE: str = "it_IT-paola-medium"

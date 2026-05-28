@@ -9,13 +9,13 @@ from ..core.exceptions import (
     OllamaTimeoutError,
     ModelNotFoundError
 )
-from .base import BaseLLMService
+from .base_provider import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
 
-class OllamaService(BaseLLMService):
+class OllamaProvider(BaseLLMProvider):
     """
-    Implementazione concreta del servizio LLM per Ollama.
+    Implementazione concreta del provider LLM per Ollama.
     Utilizza HTTPX in modo asincrono per interfacciarsi con l'istanza Ollama locale.
     """
 
@@ -40,10 +40,8 @@ class OllamaService(BaseLLMService):
         """
         async with httpx.AsyncClient(timeout=5.0) as client:
             try:
-                # L'endpoint '/' in Ollama risponde solitamente con "Ollama is running"
                 response = await client.get(self.base_url)
                 if response.status_code == 200:
-                    # Tenta di prendere la versione da /api/version
                     try:
                         ver_resp = await client.get(f"{self.base_url}/api/version")
                         version = ver_resp.json().get("version", "unknown")
@@ -78,10 +76,8 @@ class OllamaService(BaseLLMService):
 
             for m in models_list:
                 name = m.get("name", "unknown")
-                # Estraiamo il tag dal nome (es. "llama3:latest" -> tag: "latest")
                 tag = name.split(":")[-1] if ":" in name else "latest"
                 
-                # Formattiamo la dimensione in GB o MB leggibili
                 size_bytes = m.get("size", 0)
                 size_gb = size_bytes / (1024 ** 3)
                 if size_gb > 0.1:
@@ -137,6 +133,7 @@ class OllamaService(BaseLLMService):
                 logger.error(f"Ollama api/chat ha risposto con codice {response.status_code}: {response.text}")
                 raise OllamaAPIError(f"Errore chat API Ollama (HTTP {response.status_code})")
 
+            # Mappa la risposta al formato standard atteso dal resto dell'app
             return response.json()
 
     async def chat_stream(
@@ -178,7 +175,6 @@ class OllamaService(BaseLLMService):
                                 chunk = json.loads(line)
                                 content = chunk.get("message", {}).get("content", "")
                                 done = chunk.get("done", False)
-                                # Generiamo chunk formattati come Server-Sent Events (SSE)
                                 yield f"data: {json.dumps({'content': content, 'done': done})}\n\n"
                             except json.JSONDecodeError:
                                 continue

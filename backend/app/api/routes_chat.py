@@ -8,13 +8,13 @@ from ..core.config import settings
 from ..core.rate_limit import limiter
 from ..core.db import get_db, async_session_maker
 from ..schemas.chat import ChatRequest, ChatResponse, Message
-from ..services.ollama_service import OllamaService
+from ..services.llm_service import LLMService
 from ..services.conversation_memory_service import conversation_memory_service
 from ..db.repositories.conversation_repository import ConversationRepository
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-ollama_service = OllamaService()
+llm_service = LLMService()
 
 @router.post("/chat", response_model=ChatResponse)
 @limiter.limit(settings.RATE_LIMIT_CHAT)
@@ -35,7 +35,7 @@ async def chat(
     
     logger.info(f"[{request_id}] Richiesta chat. Modello: {model} | ID Conversazione: {conversation_id}")
     
-    # Ottimizzazione memoria conversazionale (summary + ultimi N messaggi)
+    # Ottimizzazione memoria conversazionale (summary + ultimi N messaggi a blocchi)
     optimized_messages = await conversation_memory_service.optimize_history(
         db=db,
         messages=chat_request.messages,
@@ -43,8 +43,8 @@ async def chat(
         model=model
     )
     
-    # Chiama Ollama
-    response_data = await ollama_service.chat(
+    # Chiama il provider LLM attivo
+    response_data = await llm_service.chat(
         model=model,
         messages=optimized_messages,
         temperature=chat_request.temperature
@@ -63,7 +63,7 @@ async def chat(
                     conversation_id=conversation_id,
                     role="assistant",
                     content=assistant_content,
-                    provider="Ollama (Locale)"
+                    provider=llm_service.provider_name
                 )
                 db_saved = True
             except Exception as e:
@@ -105,7 +105,7 @@ async def chat_stream(
     
     logger.info(f"[{request_id}] Richiesta chat streaming. Modello: {model} | ID Conversazione: {conversation_id}")
     
-    # Ottimizzazione memoria conversazionale (summary + ultimi N messaggi)
+    # Ottimizzazione memoria conversazionale (summary + ultimi N messaggi a blocchi)
     optimized_messages = await conversation_memory_service.optimize_history(
         db=db,
         messages=chat_request.messages,
@@ -113,7 +113,7 @@ async def chat_stream(
         model=model
     )
     
-    generator = await ollama_service.chat_stream(
+    generator = await llm_service.chat_stream(
         model=model,
         messages=optimized_messages,
         temperature=chat_request.temperature
@@ -146,7 +146,7 @@ async def chat_stream(
                                             conversation_id=conversation_id,
                                             role="assistant",
                                             content=accumulated_content,
-                                            provider="Ollama (Locale)"
+                                            provider=llm_service.provider_name
                                         )
                                     db_saved = True
                                     logger.info(f"[CHAT STREAM] Risposta accumulata ({len(accumulated_content)} crt) salvata su DB.")

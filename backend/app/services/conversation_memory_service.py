@@ -132,16 +132,30 @@ class ConversationMemoryService:
                 for msg in db_messages
             ]
         
-        # Se la conversazione è corta, la inviamo così com'è prependendo il system prompt
+        # Se la conversazione è corta, la inviamo così com'è prependendo il system prompt.
+        # In questo modo, l'intera cronologia rimane stabile nel prefisso e sfrutta la KV cache al 100%.
         if len(ollama_messages) <= max_messages:
             if len(ollama_messages) >= 3 and use_db:
-                # Pre-warm del summary in background (solo se il DB è online)
-                self._trigger_summary_update(conversation_id, model)
+                # Eseguiamo il pre-warm del summary in background solo se siamo a metà soglia
+                if len(ollama_messages) % 3 == 0:
+                    self._trigger_summary_update(conversation_id, model)
             return [{"role": "system", "content": MIKU_SYSTEM_PROMPT}] + ollama_messages
 
-        # Se supera la soglia, separiamo gli ultimi max_messages
-        recent_messages = ollama_messages[-max_messages:]
+        # Per evitare che lo spostamento continuo della finestra (sliding window) di un singolo
+        # messaggio ad ogni turno invalidi la cache dei prompt di llama.cpp, facciamo slittare
+        # la cronologia recente a blocchi (es. a blocchi di 4 messaggi).
+        chunk_size = 4
+        total_len = len(ollama_messages)
+        excess = total_len - max_messages
         
+        if excess > 0:
+            # L'indice iniziale cambia solo ogni chunk_size messaggi
+            start_idx = (excess // chunk_size) * chunk_size
+            recent_messages = ollama_messages[start_idx:]
+        else:
+            start_idx = 0
+            recent_messages = ollama_messages
+
         # Prova a leggere il summary da Redis cache
         summary_key = f"conv:{conversation_id}:summary"
         topics_key = f"conv:{conversation_id}:topics"
@@ -170,28 +184,34 @@ class ConversationMemoryService:
         optimized_list = [{"role": "system", "content": MIKU_SYSTEM_PROMPT}]
 
         if summary:
-            # Inietta il riassunto come contesto di sistema
+            # Inietta il riassunto come contesto di sistema stabile
             topics_info = f" (Argomenti trattati: {topics})" if topics else ""
             system_context_msg = (
                 f"[CONTESTO PRECEDENTE]\n"
-                f"La conversazione passata è stata riassunta come segue:\n"
+                f"La conversazione past è stata riassunta come segue:\n"
                 f"\"{summary}\"{topics_info}\n"
                 f"Usa queste informazioni se l'utente vi fa riferimento."
             )
             optimized_list.append({"role": "system", "content": system_context_msg})
-        else:
-            # Se nessun summary è disponibile su DB/Cache, inviamo tutto il contesto storico per non perderlo
-            logger.info(f"[MEMORY] Nessun summary trovato su DB/cache per {conversation_id}. Invio history completa.")
+        elif start_idx > 0:
+            # Se abbiamo sforato ma non c'è ancora un summary pronto, inviamo temporaneamente
+            # l'intera cronologia per non perdere continuità informativa
+            logger.info(f"[MEMORY] Nessun summary disponibile per {conversation_id} con start_idx > 0. Invio history completa.")
             if use_db:
                 self._trigger_summary_update(conversation_id, model)
             return [{"role": "system", "content": MIKU_SYSTEM_PROMPT}] + ollama_messages
+        else:
+            # Nessun summary, ma non abbiamo sforato start_idx, inviamo tutto
+            return [{"role": "system", "content": MIKU_SYSTEM_PROMPT}] + ollama_messages
 
-        # Aggiunge i messaggi della finestra recente
+        # Aggiunge i messaggi della finestra recente (che rimangono stabili per più turni consecutivi)
         optimized_list.extend(recent_messages)
         
-        # Accoda il calcolo asincrono del nuovo summary in background
+        # Accoda il calcolo asincrono del nuovo summary in background solo periodicamente
+        # per ridurre il carico sul modello e mantenere stabili i token del summary
         if use_db:
-            self._trigger_summary_update(conversation_id, model)
+            if not summary or (excess > 0 and excess % chunk_size == 0):
+                self._trigger_summary_update(conversation_id, model)
         
         return optimized_list
 

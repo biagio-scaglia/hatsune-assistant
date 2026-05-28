@@ -140,11 +140,35 @@ Poiché il backend viene eseguito all'interno di container Docker, la connession
 
 ### Esecuzione Manuale (Componenti Singoli)
 
-#### 1. Avvia Ollama in locale
+#### 1.a Avvia Ollama in locale
 Assicurati che Ollama sia in esecuzione sulla porta standard `11434` e che sia presente il modello predefinito:
 ```bash
 ollama run llama3
 ```
+
+#### 1.b Avvia llama.cpp server (Alternativa Ottimizzata per Velocità)
+Se desideri massimizzare la velocità di risposta, abbattendo la latenza del primo token (Time-to-First-Token) ed ottimizzando il Prompt Caching, puoi utilizzare `llama.cpp server` (disponibile tramite l'eseguibile `llama-server` incluso nelle release di llama.cpp).
+
+1. Scarica i binari precompilati o compila `llama.cpp` per la tua piattaforma.
+2. Scarica il modello desiderato in formato GGUF (es. `Llama-3-8B-Instruct.Q4_K_M.gguf`).
+3. Avvia il server con questo comando ottimizzato per le prestazioni:
+   ```bash
+   llama-server -m percorso/del/modello.gguf -c 4096 --port 8080 --slots --flash-attn -ngl 99
+   ```
+   *Spiegazione dei parametri di tuning:*
+   - `-m percorso/del/modello.gguf`: Specifica il file GGUF locale da eseguire.
+   - `-c 4096`: Alloca una dimensione del contesto di 4096 token.
+   - `--port 8080`: Espone il server sulla porta 8080.
+   - `--slots`: Abilita la gestione automatica degli slot paralleli e dello stato, fondamentale per mantenere contesti separati e preservare il caching.
+   - `--flash-attn`: Attiva Flash Attention, dimezzando l'occupazione di memoria per la KV cache e velocizzando l'elaborazione.
+   - `-ngl 99` (oppure `--n-gpu-layers 99`): Esegue l'offload di tutti i layer sulla GPU (CUDA o Metal) per accelerazione hardware completa.
+
+4. Modifica il file `.env` per selezionare il provider attivo:
+   ```ini
+   LLM_PROVIDER=llamacpp
+   LLAMACPP_BASE_URL=http://localhost:8080
+   DEFAULT_MODEL=llama.cpp
+   ```
 
 #### 2. Avviare i database locali
 PostgreSQL deve essere attivo sulla porta `5432` con un database denominato `hatsune_assistant`. Redis deve essere attivo sulla porta `6379`.
@@ -208,6 +232,24 @@ flutter analyze
 # Avvia l'applicazione
 flutter run
 ```
+
+---
+
+## Valutazione del Database Vettoriale (Vector DB)
+
+### Serve un Vector DB per questo progetto in questa fase?
+**No, attualmente non è necessario.**
+
+Per lo use case attuale (chat interattiva veloce + memoria della conversazione corrente), l'introduzione di un Vector DB aggiungerebbe complessità architetturale e consumo di risorse (RAM/VRAM) senza portare alcun beneficio reale immediato.
+
+**Analisi tecnica:**
+- **Gestione Memoria Conversazionale**: Il sistema utilizza già PostgreSQL per la persistenza e Redis per la cache veloce. Il riassunto della cronologia passata viene generato in background asincrono tramite Celery e iniettato come contesto di sistema. Questo approccio è estremamente coerente e più rapido rispetto alla ricerca semantica per ricostruire lo storico.
+- **Latenza e Risorse**: llama.cpp lavora al massimo delle prestazioni quando il prompt caching riutilizza prefissi stabili. Un Vector DB introdurrebbe frammenti di testo variabili recuperati semanticamente ad ogni turno in posizioni casuali del prompt, invalidando sistematicamente la KV cache e aumentando i tempi di calcolo.
+
+### Roadmap futura per RAG Documentale
+Se in futuro si volesse estendere Hatsune Assistant per consentirle di rispondere basandosi su manuali tecnici esterni, libri o interi database di documentazione (Retrieval-Augmented Generation):
+1. **Scelta Consigliata: pgvector**: Poiché il progetto utilizza già PostgreSQL, l'estensione `pgvector` è la scelta ideale. Consente di salvare gli embedding dei documenti direttamente in PostgreSQL senza introdurre un ulteriore database autonomo, mantenendo la composizione Docker estremamente leggera.
+2. **Alternative Dedicate: Qdrant o Chroma**: Da valutare solo in caso di moli di documenti massive (milioni di frammenti) o requisiti di ricerca ibrida complessa. Il backend FastAPI è già strutturato tramite pattern Repository, rendendo indolore l'inserimento di un `VectorSearchRepository` per dialogare con Qdrant o Chroma in futuro.
 
 ---
 

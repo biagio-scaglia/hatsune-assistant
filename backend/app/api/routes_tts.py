@@ -9,7 +9,7 @@ from ..core.rate_limit import limiter
 from ..core.db import get_db
 from ..schemas.chat import Message
 from ..schemas.tts import TTSRequest, TTSResponse, ChatWithTTSRequest, ChatWithTTSResponse
-from ..services.ollama_service import OllamaService
+from ..services.llm_service import LLMService
 from ..services.tts_service import TTSService, AUDIO_DIR
 from ..services.conversation_memory_service import conversation_memory_service
 from ..services.cache_service import CacheService
@@ -19,7 +19,7 @@ from ..db.repositories.conversation_repository import ConversationRepository
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-ollama_service = OllamaService()
+llm_service = LLMService()
 tts_service = TTSService()
 
 @router.post("/tts", response_model=TTSResponse)
@@ -120,15 +120,15 @@ async def chat_with_tts(
         model=model
     )
     
-    # 1. Chiama Ollama per ottenere la risposta di testo
+    # 1. Chiama il provider LLM attivo per ottenere la risposta di testo
     try:
-        response_data = await ollama_service.chat(
+        response_data = await llm_service.chat(
             model=model,
             messages=optimized_messages,
             temperature=chat_with_tts_request.temperature
         )
     except Exception as e:
-        logger.error(f"[{request_id}] Errore chiamata Ollama in chat-with-tts: {e}")
+        logger.error(f"[{request_id}] Errore chiamata LLM ({llm_service.provider_name}) in chat-with-tts: {e}")
         raise
         
     assistant_content = response_data.get("message", {}).get("content", "")
@@ -144,7 +144,7 @@ async def chat_with_tts(
                     conversation_id=conversation_id,
                     role="assistant",
                     content=assistant_content,
-                    provider="Ollama (Locale)"
+                    provider=llm_service.provider_name
                 )
                 db_saved = True
             except Exception as e:

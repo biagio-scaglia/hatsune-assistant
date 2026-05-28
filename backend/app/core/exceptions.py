@@ -35,6 +35,21 @@ class OllamaTimeoutError(BaseAIException):
     def __init__(self, message: str = "La richiesta a Ollama è andata in timeout."):
         super().__init__(message, status_code=504, code="OLLAMA_TIMEOUT")
 
+class LlamaCppConnectionError(BaseAIException):
+    """Eccezione lanciata quando il server llama.cpp non è raggiungibile o è spento."""
+    def __init__(self, message: str = "Impossibile connettersi al server llama.cpp. Assicurati che sia attivo."):
+        super().__init__(message, status_code=503, code="LLAMACPP_OFFLINE")
+
+class LlamaCppAPIError(BaseAIException):
+    """Eccezione per risposte d'errore (non-200) dall'API di llama.cpp."""
+    def __init__(self, message: str, status_code: int = 502):
+        super().__init__(message, status_code=status_code, code="LLAMACPP_API_ERROR")
+
+class LlamaCppTimeoutError(BaseAIException):
+    """Eccezione per chiamate a llama.cpp andate in timeout."""
+    def __init__(self, message: str = "La richiesta al server llama.cpp è andata in timeout."):
+        super().__init__(message, status_code=504, code="LLAMACPP_TIMEOUT")
+
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Registra gli handler globali per catturare le nostre eccezioni custom."""
