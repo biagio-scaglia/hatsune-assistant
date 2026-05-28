@@ -6,7 +6,6 @@ services:
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
     plan: free
-    port: 8000
     envVars:
       - key: PORT
         value: 8000
@@ -93,11 +92,11 @@ services:
   #         name: hatsune-postgres
   #         property: connectionString
 
-# 2. Istanza Redis Gestita (Free Tier)
-redis:
-  name: hatsune-redis
-  plan: free
-  ipAllowList: [] # Consente connessioni solo interne tra i container di Render
+  # 2. Istanza Redis Gestita (Free Tier)
+  - type: redis
+    name: hatsune-redis
+    plan: free
+    ipAllowList: [] # Consente connessioni solo interne tra i container di Render
 
 # 3. Istanza PostgreSQL Gestita (Free Tier)
 databases:
