@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -40,6 +41,13 @@ class Settings(BaseSettings):
 
     # Impostazioni Database PostgreSQL
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/hatsune_assistant"
+
+    @field_validator('DATABASE_URL', mode='before')
+    @classmethod
+    def convert_database_url(cls, v: str) -> str:
+        if v and v.startswith('postgresql://'):
+            return v.replace('postgresql://', 'postgresql+asyncpg://', 1)
+        return v
 
     # Impostazioni Speech-to-Text (STT) Whisper
     STT_MODEL_SIZE: str = "base"

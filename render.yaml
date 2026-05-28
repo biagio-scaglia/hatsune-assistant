@@ -1,0 +1,105 @@
+services:
+  # 1. Web Service principale (FastAPI + opzionalmente Celery in background per il Free Tier)
+  - type: web
+    name: hatsune-backend
+    env: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    port: 8000
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: APP_ENV
+        value: production
+      - key: LLM_PROVIDER
+        value: llamacpp # Impostare 'ollama' o 'llamacpp' a seconda dell'LLM usato in prod
+      - key: DEFAULT_MODEL
+        value: llama3:latest
+      # Abilita l'esecuzione di Celery (worker + beat) in background nello stesso container del Web Service
+      # per consentire il deploy gratuito a costo zero su Render. Impostare a 'false' se si usano servizi Celery esterni.
+      - key: RUN_CELERY_IN_WEB
+        value: "true"
+      # Configura le connessioni automatiche a Redis e Postgres ereditandole dai servizi definiti sotto
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: hatsune-redis
+          property: connectionString
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hatsune-postgres
+          property: connectionString
+      # Altre impostazioni dell'applicazione backend
+      - key: TTS_PROVIDER
+        value: piper
+      - key: AUDIO_OUTPUT_DIR
+        value: app/static/generated_audio
+      # Usiamo Whisper 'tiny' per garantire che rimanga nei 512MB di RAM del piano gratuito Render
+      - key: STT_MODEL_SIZE
+        value: tiny
+      - key: STT_DEVICE
+        value: cpu
+      - key: STT_COMPUTE_TYPE
+        value: int8
+      - key: CORS_ORIGINS
+        value: "*"
+
+  # =========================================================================
+  # Celery Services dedicati (Opzionale: Scommentare se si usa un piano a pagamento)
+  # Ricordarsi in tal caso di impostare RUN_CELERY_IN_WEB="false" sopra.
+  # =========================================================================
+  # - type: worker
+  #   name: hatsune-celery-worker
+  #   env: docker
+  #   dockerfilePath: backend/Dockerfile
+  #   dockerContext: backend
+  #   plan: starter
+  #   startCommand: celery -A app.celery_app worker --loglevel=info
+  #   envVars:
+  #     - key: APP_ENV
+  #       value: production
+  #     - key: REDIS_URL
+  #       fromService:
+  #         type: redis
+  #         name: hatsune-redis
+  #         property: connectionString
+  #     - key: DATABASE_URL
+  #       fromDatabase:
+  #         name: hatsune-postgres
+  #         property: connectionString
+  #     - key: STT_MODEL_SIZE
+  #       value: tiny
+  #     - key: STT_DEVICE
+  #       value: cpu
+  #
+  # - type: worker
+  #   name: hatsune-celery-beat
+  #   env: docker
+  #   dockerfilePath: backend/Dockerfile
+  #   dockerContext: backend
+  #   plan: starter
+  #   startCommand: celery -A app.celery_app beat --loglevel=info
+  #   envVars:
+  #     - key: APP_ENV
+  #       value: production
+  #     - key: REDIS_URL
+  #       fromService:
+  #         type: redis
+  #         name: hatsune-redis
+  #         property: connectionString
+  #     - key: DATABASE_URL
+  #       fromDatabase:
+  #         name: hatsune-postgres
+  #         property: connectionString
+
+# 2. Istanza Redis Gestita (Free Tier)
+redis:
+  name: hatsune-redis
+  plan: free
+  ipAllowList: [] # Consente connessioni solo interne tra i container di Render
+
+# 3. Istanza PostgreSQL Gestita (Free Tier)
+databases:
+  - name: hatsune-postgres
+    plan: free
