@@ -1,2 +1,0 @@
-# Piper TTS locale non richiede dipendenze Python complesse.
-# Viene eseguito come binario C++ standalone (piper.exe) richiamato tramite subprocess.

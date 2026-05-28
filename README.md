@@ -136,6 +136,21 @@ Poiché il backend viene eseguito all'interno di container Docker, la connession
      ```
 3. Riavvia Ollama sul computer.
 
+### Esecuzione Semplificata tramite Script (Windows)
+
+Se stai sviluppando su Windows, puoi utilizzare gli script pre-configurati all'interno della cartella `scripts/` per velocizzare il lavoro e non dover digitare comandi ripetitivi:
+
+1. **Bootstrap Iniziale** (da eseguire solo una volta al primo avvio):
+   Fai doppio clic su `scripts\bootstrap.bat` o eseguilo da terminale per creare l'ambiente virtuale del backend, installare i pacchetti pip e scaricare le dipendenze di Flutter.
+2. **Avvio del Backend** (in tre terminali separati):
+   - **FastAPI API Server**: Esegui `scripts\start_backend.bat` (attiva il venv, applica le migrazioni ed avvia uvicorn).
+   - **Celery Worker**: Esegui `scripts\start_celery_worker.bat` (attiva il venv ed avvia l'elaborazione dei task in background).
+   - **Celery Beat**: Esegui `scripts\start_celery_beat.bat` (attiva il venv ed avvia lo scheduler per i task periodici).
+3. **Avvio del Frontend Flutter**:
+   Entra nella cartella `app/flutter_app` ed esegui `flutter run`.
+4. **Pulizia e Ripristino**:
+   Esegui `scripts\cleanup.bat` per ripulire la cache di Python, cancellare i file audio WAV temporanei e pulire le cartelle temporanee di build di Flutter.
+
 ---
 
 ### Esecuzione Manuale (Componenti Singoli)
@@ -221,8 +236,10 @@ celery -A app.celery_app beat --loglevel=info
 ```
 
 #### 4. Avvia il Frontend Flutter
-Apri un terminale nella cartella radice del progetto:
+Entra nella cartella `app/flutter_app` del progetto:
 ```bash
+cd app/flutter_app
+
 # Scarica le dipendenze
 flutter pub get
 
