@@ -261,6 +261,46 @@ class AssistantState extends ChangeNotifier {
       'time': _getCurrentTime(),
     });
 
+    // Controllo Easter Egg per cambio tema dinamico tramite chat
+    final lowerText = text.toLowerCase().trim();
+    if (lowerText.contains('diventa rosa') ||
+        lowerText.contains('modalità rosa') ||
+        lowerText.contains('pink mode') ||
+        lowerText.contains('tema rosa') ||
+        lowerText == 'rosa' ||
+        lowerText == 'pink') {
+      setColorTheme("Neon Pink");
+      _messages.add({
+        'sender': 'assistant',
+        'text': 'Certamente! Imposto la modalità Neon Pink. Come ti sembra questo look? 💖🌸',
+        'time': _getCurrentTime(),
+      });
+      setMikuState(MikuState.victory);
+      _victoryTimer = Timer(const Duration(seconds: 5), () {
+        setMikuState(MikuState.idle);
+      });
+      return;
+    }
+
+    if (lowerText.contains('diventa azzurro') ||
+        lowerText.contains('modalità azzurra') ||
+        lowerText.contains('cyan mode') ||
+        lowerText.contains('tema azzurro') ||
+        lowerText == 'azzurro' ||
+        lowerText == 'cyan') {
+      setColorTheme("Cyan Cyberpunk");
+      _messages.add({
+        'sender': 'assistant',
+        'text': 'Va bene! Ripristino la tonalità Cyan Cyberpunk classica. 🩵🤖',
+        'time': _getCurrentTime(),
+      });
+      setMikuState(MikuState.victory);
+      _victoryTimer = Timer(const Duration(seconds: 5), () {
+        setMikuState(MikuState.idle);
+      });
+      return;
+    }
+
     _mikuState = MikuState.thinking;
     notifyListeners();
 

@@ -15,7 +15,7 @@ class AppColors {
   // Accenti dinamici
   static Color get primary => currentTheme == "Neon Pink" ? const Color(0xFFFF6B9D) : const Color(0xFF39C5BB);
   static Color get primaryLight => currentTheme == "Neon Pink" ? const Color(0xFFFF8DAF) : const Color(0xFF5CE0D8);
-  static Color get secondary => currentTheme == "Neon Pink" ? const Color(0xFF39C5BB) : const Color(0xFFFF6B9D);
+  static Color get secondary => currentTheme == "Neon Pink" ? const Color(0xFFBD00FF) : const Color(0xFFFF6B9D);
   static const Color accentBlue = Color(0xFF007BFF); // Blu secondario per link/pulsanti
 
   // Bordi e Divisori

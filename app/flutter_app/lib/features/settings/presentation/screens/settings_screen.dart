@@ -211,7 +211,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textMuted),
                   onTap: () {
                     final nextTheme = widget.state.colorTheme == "Cyan Cyberpunk"
-                        ? "Pink Cyberpunk"
+                        ? "Neon Pink"
                         : "Cyan Cyberpunk";
                     widget.state.setColorTheme(nextTheme);
                   },
